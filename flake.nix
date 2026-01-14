@@ -40,6 +40,9 @@
             # Testing
             gotestsum
 
+            # Release
+            goreleaser
+
             # Utilities
             git
             git-absorb
