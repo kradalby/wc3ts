@@ -1,5 +1,5 @@
 # Binaries
-wc3ts
+/wc3ts
 *.exe
 
 # Dependencies
