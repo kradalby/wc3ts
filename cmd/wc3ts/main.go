@@ -3,6 +3,8 @@ package main
 
 import (
 	"context"
+	"flag"
+	"fmt"
 	"log/slog"
 	"math"
 	"os"
@@ -17,6 +19,7 @@ import (
 	"github.com/kradalby/wc3ts/proxy"
 	"github.com/kradalby/wc3ts/tailscale"
 	"github.com/kradalby/wc3ts/tui"
+	"github.com/kradalby/wc3ts/version"
 )
 
 // app holds the application state and dependencies.
@@ -31,6 +34,21 @@ type app struct {
 }
 
 func main() {
+	showVersion := flag.Bool("version", false, "print version and exit")
+
+	flag.Parse()
+
+	if *showVersion {
+		v := version.Get()
+		_, _ = fmt.Fprintf(os.Stdout, "wc3ts %s\n", v.String())
+
+		if v.GoVer != "" {
+			_, _ = fmt.Fprintf(os.Stdout, "  go: %s\n", v.GoVer)
+		}
+
+		return
+	}
+
 	// Set up logging
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
@@ -173,7 +191,7 @@ func (a *app) runTCPProxy(ctx context.Context) {
 }
 
 func (a *app) runTUI() error {
-	model := tui.NewModel(a.tcpProxy.Port(), a.cfg.GameVersion)
+	model := tui.NewModel(a.tcpProxy.Port(), a.cfg.GameVersion, version.Get())
 	a.program = tea.NewProgram(model, tea.WithAltScreen())
 
 	_, err := a.program.Run()

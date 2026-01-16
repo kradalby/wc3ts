@@ -52,7 +52,8 @@ func (m Model) View() string {
 	var b strings.Builder
 
 	// Title bar
-	title := s.title.Render("wc3ts - WC3 LAN over Tailscale")
+	titleText := "wc3ts " + m.buildVersion.String()
+	title := s.title.Render(titleText)
 	versionInfo := m.versionString()
 
 	titleBar := lipgloss.JoinHorizontal(

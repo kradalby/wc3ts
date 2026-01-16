@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/kradalby/wc3ts/game"
 	"github.com/kradalby/wc3ts/tailscale"
+	"github.com/kradalby/wc3ts/version"
 	"github.com/nielsAD/gowarcraft3/protocol/w3gs"
 )
 
@@ -24,17 +25,18 @@ const (
 
 // Model is the Bubble Tea model for the TUI.
 type Model struct {
-	peers     []tailscale.Peer
-	games     []game.Game
-	version   w3gs.GameVersion
-	proxyPort int
-	peerTable table.Model
-	gameTable table.Model
-	width     int
-	height    int
-	ready     bool
-	quitting  bool
-	warning   string
+	peers        []tailscale.Peer
+	games        []game.Game
+	version      w3gs.GameVersion
+	buildVersion version.Info
+	proxyPort    int
+	peerTable    table.Model
+	gameTable    table.Model
+	width        int
+	height       int
+	ready        bool
+	quitting     bool
+	warning      string
 }
 
 // PeersMsg is sent when the peer list changes.
@@ -58,7 +60,7 @@ type WarningMsg struct {
 }
 
 // NewModel creates a new TUI model.
-func NewModel(proxyPort int, version w3gs.GameVersion) Model {
+func NewModel(proxyPort int, gameVersion w3gs.GameVersion, buildVersion version.Info) Model {
 	peerColumns := []table.Column{
 		{Title: "Name", Width: colWidthName},
 		{Title: "IP", Width: colWidthIP},
@@ -102,12 +104,13 @@ func NewModel(proxyPort int, version w3gs.GameVersion) Model {
 	gameTable.SetStyles(s)
 
 	return Model{
-		peers:     make([]tailscale.Peer, 0),
-		games:     make([]game.Game, 0),
-		version:   version,
-		proxyPort: proxyPort,
-		peerTable: peerTable,
-		gameTable: gameTable,
+		peers:        make([]tailscale.Peer, 0),
+		games:        make([]game.Game, 0),
+		version:      gameVersion,
+		buildVersion: buildVersion,
+		proxyPort:    proxyPort,
+		peerTable:    peerTable,
+		gameTable:    gameTable,
 	}
 }
 
