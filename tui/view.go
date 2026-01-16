@@ -14,6 +14,7 @@ type styles struct {
 	statusBar lipgloss.Style
 	help      lipgloss.Style
 	warning   lipgloss.Style
+	logLine   lipgloss.Style
 }
 
 // newStyles creates the TUI styles.
@@ -34,6 +35,8 @@ func newStyles() styles {
 		warning: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("214")).
 			Bold(true),
+		logLine: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("245")),
 	}
 }
 
@@ -77,6 +80,21 @@ func (m Model) View() string {
 	b.WriteString("\n")
 	b.WriteString(m.gameTable.View())
 	b.WriteString("\n\n")
+
+	// Debug logs section
+	b.WriteString(s.header.Render("Debug Log"))
+	b.WriteString("\n")
+
+	if len(m.logs) == 0 {
+		b.WriteString(s.logLine.Render("  (no logs yet)"))
+	} else {
+		for _, line := range m.logs {
+			b.WriteString(s.logLine.Render("  " + line))
+			b.WriteString("\n")
+		}
+	}
+
+	b.WriteString("\n")
 
 	// Warning (if any)
 	if m.warning != "" {

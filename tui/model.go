@@ -21,6 +21,7 @@ const (
 	colWidthPlayers = 10
 	colWidthSource  = 10
 	tableHeight     = 5
+	maxLogLines     = 10
 )
 
 // Model is the Bubble Tea model for the TUI.
@@ -32,6 +33,7 @@ type Model struct {
 	proxyPort    int
 	peerTable    table.Model
 	gameTable    table.Model
+	logs         []string
 	width        int
 	height       int
 	ready        bool
@@ -57,6 +59,16 @@ type VersionMsg struct {
 // WarningMsg is sent when a warning needs to be displayed.
 type WarningMsg struct {
 	Message string
+}
+
+// LogMsg is sent when a log message should be displayed.
+type LogMsg struct {
+	Message string
+}
+
+// PortMsg is sent to update the proxy port after initialization.
+type PortMsg struct {
+	Port int
 }
 
 // NewModel creates a new TUI model.
@@ -111,6 +123,7 @@ func NewModel(proxyPort int, gameVersion w3gs.GameVersion, buildVersion version.
 		proxyPort:    proxyPort,
 		peerTable:    peerTable,
 		gameTable:    gameTable,
+		logs:         make([]string, 0, maxLogLines),
 	}
 }
 

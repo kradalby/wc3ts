@@ -42,6 +42,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.warning = msg.Message
 
 		return m, nil
+
+	case LogMsg:
+		m.logs = append(m.logs, msg.Message)
+		// Keep only the last maxLogLines
+		if len(m.logs) > maxLogLines {
+			m.logs = m.logs[len(m.logs)-maxLogLines:]
+		}
+
+		return m, nil
+
+	case PortMsg:
+		m.proxyPort = msg.Port
+
+		return m, nil
 	}
 
 	return m, nil

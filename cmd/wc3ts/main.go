@@ -66,14 +66,46 @@ func run() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	a, err := newApp(ctx)
+	// Create app with default config
+	a := &app{
+		cfg: config.Default(),
+	}
+
+	// Create TUI program early so we can log to it
+	model := tui.NewModel(0, a.cfg.GameVersion, version.Get())
+	a.program = tea.NewProgram(model, tea.WithAltScreen())
+
+	// Set up logging to TUI (Debug level to see everything)
+	handler := tui.NewHandler(a.program, slog.LevelDebug)
+	slog.SetDefault(slog.New(handler))
+
+	// Initialize the rest of the app (logs won't show until program starts)
+	err := a.initServices(ctx)
 	if err != nil {
 		return err
 	}
 
 	a.startServices(ctx)
 
-	err = a.runTUI()
+	// Start TUI in goroutine
+	tuiDone := make(chan error, 1)
+
+	go func() {
+		_, err := a.program.Run()
+		tuiDone <- err
+	}()
+
+	// Mark handler ready once program is running
+	handler.SetReady()
+
+	// Update TUI model with actual proxy port
+	a.program.Send(tui.PortMsg{Port: a.tcpProxy.Port()})
+
+	// Log that we're ready
+	slog.Info("wc3ts started", "proxyPort", a.tcpProxy.Port())
+
+	// Wait for TUI to finish
+	err = <-tuiDone
 	if err != nil {
 		return err
 	}
@@ -88,11 +120,7 @@ func run() error {
 	return nil
 }
 
-func newApp(ctx context.Context) (*app, error) {
-	a := &app{
-		cfg: config.Default(),
-	}
-
+func (a *app) initServices(ctx context.Context) error {
 	// Create game registry with callback
 	a.registry = game.NewRegistry(a.onGamesChanged)
 
@@ -101,7 +129,7 @@ func newApp(ctx context.Context) (*app, error) {
 
 	a.tcpProxy, err = proxy.NewTCPProxy(ctx, a.registry)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Create Tailscale discovery
@@ -110,7 +138,7 @@ func newApp(ctx context.Context) (*app, error) {
 	// Create peer manager
 	a.peerManager, err = peer.NewManager(a.discovery, a.registry, a.cfg.ProbeInterval)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Create LAN broadcaster (uses ephemeral port, doesn't conflict with WC3)
@@ -118,7 +146,7 @@ func newApp(ctx context.Context) (*app, error) {
 
 	a.broadcaster, err = lan.NewBroadcaster(proxyPort, a.cfg.ShowPeerNames)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Update registry callback to also notify broadcaster
@@ -127,7 +155,7 @@ func newApp(ctx context.Context) (*app, error) {
 	// Recreate peer manager with new registry
 	a.peerManager, err = peer.NewManager(a.discovery, a.registry, a.cfg.ProbeInterval)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Set default version for peer probing
@@ -147,7 +175,7 @@ func newApp(ctx context.Context) (*app, error) {
 		}
 	}
 
-	return a, nil
+	return nil
 }
 
 func (a *app) onGamesChanged(games []game.Game) {
@@ -214,15 +242,6 @@ func (a *app) runResponder(ctx context.Context) {
 	if err != nil && ctx.Err() == nil {
 		slog.Error("responder error", "error", err)
 	}
-}
-
-func (a *app) runTUI() error {
-	model := tui.NewModel(a.tcpProxy.Port(), a.cfg.GameVersion, version.Get())
-	a.program = tea.NewProgram(model, tea.WithAltScreen())
-
-	_, err := a.program.Run()
-
-	return err
 }
 
 // safeUint16 safely converts an int to uint16, clamping to max value.
