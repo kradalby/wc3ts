@@ -9,7 +9,7 @@ import (
 
 // Default configuration values.
 const (
-	DefaultProbeInterval   = 5 * time.Second
+	DefaultProbeInterval   = 2 * time.Second
 	DefaultRefreshInterval = 3 * time.Second
 	DefaultGameTimeout     = 10 * time.Second
 
