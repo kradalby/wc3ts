@@ -107,7 +107,7 @@ func newApp(ctx context.Context) (*app, error) {
 	}
 
 	// Create LAN listener
-	a.lanListener, err = lan.NewListener(a.registry, a.onVersionDetected)
+	a.lanListener, err = lan.NewListener(ctx, a.registry, a.onVersionDetected)
 	if err != nil {
 		return nil, err
 	}

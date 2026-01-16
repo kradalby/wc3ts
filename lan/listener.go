@@ -3,6 +3,7 @@ package lan
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/netip"
@@ -32,10 +33,15 @@ type Listener struct {
 }
 
 // NewListener creates a new LAN listener.
-func NewListener(registry *game.Registry, onVersionDetected OnVersionDetectedFunc) (*Listener, error) {
-	conn, err := net.ListenUDP("udp4", &net.UDPAddr{Port: DefaultPort})
+func NewListener(
+	ctx context.Context,
+	registry *game.Registry,
+	onVersionDetected OnVersionDetectedFunc,
+) (*Listener, error) {
+	// Use reusable port so WC3 can also bind to 6112
+	conn, err := listenUDPReusable(ctx, DefaultPort)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to listen on UDP port %d: %w", DefaultPort, err)
 	}
 
 	listener := &Listener{
