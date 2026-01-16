@@ -37,6 +37,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.version = msg.Version
 
 		return m, nil
+
+	case WarningMsg:
+		m.warning = msg.Message
+
+		return m, nil
 	}
 
 	return m, nil

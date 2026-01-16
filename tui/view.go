@@ -13,6 +13,7 @@ type styles struct {
 	header    lipgloss.Style
 	statusBar lipgloss.Style
 	help      lipgloss.Style
+	warning   lipgloss.Style
 }
 
 // newStyles creates the TUI styles.
@@ -30,6 +31,9 @@ func newStyles() styles {
 			Foreground(lipgloss.Color("240")),
 		help: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("241")),
+		warning: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("214")).
+			Bold(true),
 	}
 }
 
@@ -72,6 +76,12 @@ func (m Model) View() string {
 	b.WriteString("\n")
 	b.WriteString(m.gameTable.View())
 	b.WriteString("\n\n")
+
+	// Warning (if any)
+	if m.warning != "" {
+		b.WriteString(s.warning.Render("Warning: " + m.warning))
+		b.WriteString("\n\n")
+	}
 
 	// Status bar
 	statusBar := m.statusBar()

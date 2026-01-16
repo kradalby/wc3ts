@@ -34,6 +34,7 @@ type Model struct {
 	height    int
 	ready     bool
 	quitting  bool
+	warning   string
 }
 
 // PeersMsg is sent when the peer list changes.
@@ -49,6 +50,11 @@ type GamesMsg struct {
 // VersionMsg is sent when the game version is detected.
 type VersionMsg struct {
 	Version w3gs.GameVersion
+}
+
+// WarningMsg is sent when a warning needs to be displayed.
+type WarningMsg struct {
+	Message string
 }
 
 // NewModel creates a new TUI model.
