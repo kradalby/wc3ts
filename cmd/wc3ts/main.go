@@ -27,7 +27,7 @@ type app struct {
 	tcpProxy       *proxy.TCPProxy
 	discovery      *tailscale.Discovery
 	peerManager    *peer.Manager
-	advertiser     *lan.Advertiser
+	broadcaster    *lan.Broadcaster
 	lanListener    *lan.Listener
 	lanListenerErr error
 	program        *tea.Program
@@ -64,7 +64,10 @@ func run() error {
 
 	// Clean up
 	cancel()
-	a.advertiser.Close()
+
+	if a.broadcaster != nil {
+		_ = a.broadcaster.Close()
+	}
 
 	return nil
 }
@@ -94,11 +97,15 @@ func newApp(ctx context.Context) (*app, error) {
 		return nil, err
 	}
 
-	// Create LAN advertiser
+	// Create LAN broadcaster (uses ephemeral port, doesn't conflict with WC3)
 	proxyPort := safeUint16(a.tcpProxy.Port())
-	a.advertiser = lan.NewAdvertiser(proxyPort, a.cfg.ShowPeerNames)
 
-	// Update registry callback to also notify advertiser
+	a.broadcaster, err = lan.NewBroadcaster(proxyPort, a.cfg.ShowPeerNames)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update registry callback to also notify broadcaster
 	a.registry = game.NewRegistry(a.onGamesChanged)
 
 	// Recreate peer manager with new registry
@@ -123,8 +130,8 @@ func (a *app) onGamesChanged(games []game.Game) {
 		a.program.Send(tui.GamesMsg{Games: games})
 	}
 
-	if a.advertiser != nil {
-		a.advertiser.OnGamesChanged(games)
+	if a.broadcaster != nil {
+		a.broadcaster.OnGamesChanged(games)
 	}
 }
 
@@ -152,6 +159,7 @@ func (a *app) startServices(ctx context.Context) {
 	go a.runDiscovery(ctx)
 	go a.runPeerManager(ctx)
 	go a.runLANListener(ctx)
+	go a.runBroadcaster(ctx)
 	go a.runTCPProxy(ctx)
 }
 
@@ -177,6 +185,13 @@ func (a *app) runLANListener(ctx context.Context) {
 	err := a.lanListener.Run(ctx)
 	if err != nil && ctx.Err() == nil {
 		slog.Error("LAN listener error", "error", err)
+	}
+}
+
+func (a *app) runBroadcaster(ctx context.Context) {
+	err := a.broadcaster.Run(ctx)
+	if err != nil && ctx.Err() == nil {
+		slog.Error("broadcaster error", "error", err)
 	}
 }
 
