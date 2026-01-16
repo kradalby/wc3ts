@@ -12,6 +12,9 @@ const (
 	DefaultProbeInterval   = 5 * time.Second
 	DefaultRefreshInterval = 3 * time.Second
 	DefaultGameTimeout     = 10 * time.Second
+
+	// DefaultGameVersion is TFT 1.28 - common for LAN parties.
+	DefaultGameVersion = 10028
 )
 
 // Config holds the configuration for the WC3 Tailscale proxy.
@@ -36,7 +39,10 @@ type Config struct {
 // Default returns the default configuration.
 func Default() *Config {
 	return &Config{
-		GameVersion:     w3gs.GameVersion{}, // Zero = auto-detect
+		GameVersion: w3gs.GameVersion{
+			Product: w3gs.ProductTFT,
+			Version: DefaultGameVersion,
+		},
 		ProbeInterval:   DefaultProbeInterval,
 		RefreshInterval: DefaultRefreshInterval,
 		GameTimeout:     DefaultGameTimeout,

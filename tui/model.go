@@ -58,7 +58,7 @@ type WarningMsg struct {
 }
 
 // NewModel creates a new TUI model.
-func NewModel(proxyPort int) Model {
+func NewModel(proxyPort int, version w3gs.GameVersion) Model {
 	peerColumns := []table.Column{
 		{Title: "Name", Width: colWidthName},
 		{Title: "IP", Width: colWidthIP},
@@ -104,6 +104,7 @@ func NewModel(proxyPort int) Model {
 	return Model{
 		peers:     make([]tailscale.Peer, 0),
 		games:     make([]game.Game, 0),
+		version:   version,
 		proxyPort: proxyPort,
 		peerTable: peerTable,
 		gameTable: gameTable,

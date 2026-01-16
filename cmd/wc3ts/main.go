@@ -17,20 +17,17 @@ import (
 	"github.com/kradalby/wc3ts/proxy"
 	"github.com/kradalby/wc3ts/tailscale"
 	"github.com/kradalby/wc3ts/tui"
-	"github.com/nielsAD/gowarcraft3/protocol/w3gs"
 )
 
 // app holds the application state and dependencies.
 type app struct {
-	cfg            *config.Config
-	registry       *game.Registry
-	tcpProxy       *proxy.TCPProxy
-	discovery      *tailscale.Discovery
-	peerManager    *peer.Manager
-	broadcaster    *lan.Broadcaster
-	lanListener    *lan.Listener
-	lanListenerErr error
-	program        *tea.Program
+	cfg         *config.Config
+	registry    *game.Registry
+	tcpProxy    *proxy.TCPProxy
+	discovery   *tailscale.Discovery
+	peerManager *peer.Manager
+	broadcaster *lan.Broadcaster
+	program     *tea.Program
 }
 
 func main() {
@@ -114,13 +111,8 @@ func newApp(ctx context.Context) (*app, error) {
 		return nil, err
 	}
 
-	// Create LAN listener (non-fatal if it fails - WC3 may have the port)
-	a.lanListener, err = lan.NewListener(ctx, a.registry, a.onVersionDetected)
-	if err != nil {
-		slog.Warn("LAN listener failed to start", "error", err)
-		a.lanListenerErr = err
-		// Continue without LAN listener - will show warning in TUI
-	}
+	// Set default version for peer probing
+	a.peerManager.SetVersion(a.cfg.GameVersion)
 
 	return a, nil
 }
@@ -145,20 +137,9 @@ func (a *app) onPeersChanged(peers []tailscale.Peer) {
 	}
 }
 
-func (a *app) onVersionDetected(version w3gs.GameVersion) {
-	if a.program != nil {
-		a.program.Send(tui.VersionMsg{Version: version})
-	}
-
-	if a.peerManager != nil {
-		a.peerManager.SetVersion(version)
-	}
-}
-
 func (a *app) startServices(ctx context.Context) {
 	go a.runDiscovery(ctx)
 	go a.runPeerManager(ctx)
-	go a.runLANListener(ctx)
 	go a.runBroadcaster(ctx)
 	go a.runTCPProxy(ctx)
 }
@@ -177,17 +158,6 @@ func (a *app) runPeerManager(ctx context.Context) {
 	}
 }
 
-func (a *app) runLANListener(ctx context.Context) {
-	if a.lanListener == nil {
-		return
-	}
-
-	err := a.lanListener.Run(ctx)
-	if err != nil && ctx.Err() == nil {
-		slog.Error("LAN listener error", "error", err)
-	}
-}
-
 func (a *app) runBroadcaster(ctx context.Context) {
 	err := a.broadcaster.Run(ctx)
 	if err != nil && ctx.Err() == nil {
@@ -203,17 +173,8 @@ func (a *app) runTCPProxy(ctx context.Context) {
 }
 
 func (a *app) runTUI() error {
-	model := tui.NewModel(a.tcpProxy.Port())
+	model := tui.NewModel(a.tcpProxy.Port(), a.cfg.GameVersion)
 	a.program = tea.NewProgram(model, tea.WithAltScreen())
-
-	// Send warning if LAN listener failed to start
-	if a.lanListenerErr != nil {
-		go func() {
-			a.program.Send(tui.WarningMsg{
-				Message: "LAN listener unavailable - start wc3ts before Warcraft III",
-			})
-		}()
-	}
 
 	_, err := a.program.Run()
 

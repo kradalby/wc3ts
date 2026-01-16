@@ -12,6 +12,9 @@ import (
 	"github.com/nielsAD/gowarcraft3/protocol/w3gs"
 )
 
+// DefaultPort is the standard WC3 LAN port.
+const DefaultPort = 6112
+
 // BroadcastInterval is how often to send game broadcasts.
 const BroadcastInterval = 3 * time.Second
 
