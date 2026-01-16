@@ -29,6 +29,7 @@ type app struct {
 	tcpProxy    *proxy.TCPProxy
 	discovery   *tailscale.Discovery
 	peerManager *peer.Manager
+	responder   *peer.Responder
 	broadcaster *lan.Broadcaster
 	program     *tea.Program
 }
@@ -132,6 +133,20 @@ func newApp(ctx context.Context) (*app, error) {
 	// Set default version for peer probing
 	a.peerManager.SetVersion(a.cfg.GameVersion)
 
+	// Create responder to answer queries from remote Tailscale peers
+	// This requires our Tailscale IP, so we fetch it synchronously
+	localIP, err := a.discovery.FetchSelfIP(ctx)
+	if err != nil {
+		slog.Warn("could not get Tailscale IP, remote discovery disabled", "error", err)
+	} else if localIP.IsValid() {
+		a.responder, err = peer.NewResponder(a.registry, localIP)
+		if err != nil {
+			slog.Warn("could not create responder, remote discovery disabled", "error", err)
+		} else {
+			slog.Info("responder listening for remote queries", "ip", localIP)
+		}
+	}
+
 	return a, nil
 }
 
@@ -160,6 +175,10 @@ func (a *app) startServices(ctx context.Context) {
 	go a.runPeerManager(ctx)
 	go a.runBroadcaster(ctx)
 	go a.runTCPProxy(ctx)
+
+	if a.responder != nil {
+		go a.runResponder(ctx)
+	}
 }
 
 func (a *app) runDiscovery(ctx context.Context) {
@@ -187,6 +206,13 @@ func (a *app) runTCPProxy(ctx context.Context) {
 	err := a.tcpProxy.Run(ctx)
 	if err != nil && ctx.Err() == nil {
 		slog.Error("TCP proxy error", "error", err)
+	}
+}
+
+func (a *app) runResponder(ctx context.Context) {
+	err := a.responder.Run(ctx)
+	if err != nil && ctx.Err() == nil {
+		slog.Error("responder error", "error", err)
 	}
 }
 
