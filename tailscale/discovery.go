@@ -89,11 +89,33 @@ func (d *Discovery) Peers() []Peer {
 }
 
 // SelfIP returns this node's Tailscale IPv4 address.
+// Returns zero addr if not yet known from netmap updates.
 func (d *Discovery) SelfIP() netip.Addr {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
 	return d.selfIP
+}
+
+// FetchSelfIP queries the Tailscale daemon for our IP address.
+// This can be called before Run() to get the IP synchronously.
+func (d *Discovery) FetchSelfIP(ctx context.Context) (netip.Addr, error) {
+	status, err := d.client.Status(ctx)
+	if err != nil {
+		return netip.Addr{}, err
+	}
+
+	for _, ip := range status.TailscaleIPs {
+		if ip.Is4() {
+			d.mu.Lock()
+			d.selfIP = ip
+			d.mu.Unlock()
+
+			return ip, nil
+		}
+	}
+
+	return netip.Addr{}, nil
 }
 
 // Close stops the discovery watcher.
