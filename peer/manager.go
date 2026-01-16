@@ -104,7 +104,7 @@ func (m *Manager) initHandlers() {
 	m.On(&w3gs.GameInfo{}, m.onGameInfo)
 }
 
-// probeAllPeers sends SearchGame to all known peers.
+// probeAllPeers sends SearchGame to all known peers and localhost.
 func (m *Manager) probeAllPeers() {
 	m.mu.RLock()
 	peers := make([]tailscale.Peer, len(m.peers))
@@ -117,11 +117,33 @@ func (m *Manager) probeAllPeers() {
 		return
 	}
 
+	// Probe localhost for local games
+	m.probeLocal(version)
+
+	// Probe remote Tailscale peers
 	for i := range peers {
 		peer := &peers[i]
 		if peer.Online {
 			m.probePeer(peer.IP, version)
 		}
+	}
+}
+
+// probeLocal sends a SearchGame packet to localhost to discover local games.
+func (m *Manager) probeLocal(version w3gs.GameVersion) {
+	addr := &net.UDPAddr{
+		IP:   net.ParseIP("127.0.0.1"),
+		Port: lan.DefaultPort,
+	}
+
+	pkt := &w3gs.SearchGame{
+		GameVersion: version,
+		HostCounter: 0,
+	}
+
+	_, err := m.Send(addr, pkt)
+	if err != nil {
+		slog.Debug("failed to probe localhost", "error", err)
 	}
 }
 
@@ -146,7 +168,7 @@ func (m *Manager) probePeer(peerIP netip.Addr, version w3gs.GameVersion) {
 	}
 }
 
-// onGameInfo handles GameInfo packets from remote peers.
+// onGameInfo handles GameInfo packets from local WC3 or remote peers.
 func (m *Manager) onGameInfo(ev *network.Event) {
 	pkt, ok := ev.Arg.(*w3gs.GameInfo)
 	if !ok {
@@ -169,20 +191,30 @@ func (m *Manager) onGameInfo(ev *network.Event) {
 		return
 	}
 
-	// Find peer name
-	peerName := m.findPeerName(peerIP)
+	// Determine if this is a local or remote game
+	var source game.Source
 
-	slog.Debug("discovered remote game",
+	var peerName string
+
+	if peerIP.IsLoopback() {
+		source = game.SourceLocal
+		peerName = "local"
+	} else {
+		source = game.SourceRemote
+		peerName = m.findPeerName(peerIP)
+	}
+
+	slog.Debug("discovered game",
 		"name", pkt.GameName,
+		"source", source,
 		"peer", peerName,
 		"peerIP", peerIP,
 		"slots", pkt.SlotsUsed, "/", pkt.SlotsTotal,
 	)
 
-	// Add to registry as remote game
 	m.registry.Add(game.Game{
 		Info:     *pkt,
-		Source:   game.SourceRemote,
+		Source:   source,
 		PeerIP:   peerIP,
 		PeerName: peerName,
 	})
