@@ -30,6 +30,7 @@ type Broadcaster struct {
 	proxyPort        uint16
 	showPeerNames    bool
 	broadcastAddr    *net.UDPAddr
+	localhostAddr    *net.UDPAddr // For WC3 on same machine
 	mu               sync.RWMutex
 }
 
@@ -51,6 +52,7 @@ func NewBroadcaster(proxyPort uint16, showPeerNames bool) (*Broadcaster, error) 
 		proxyPort:        proxyPort,
 		showPeerNames:    showPeerNames,
 		broadcastAddr:    &net.UDPAddr{IP: net.IPv4bcast, Port: DefaultPort},
+		localhostAddr:    &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: DefaultPort},
 		previousGameKeys: make(map[string]uint32),
 	}
 
@@ -110,14 +112,22 @@ func (b *Broadcaster) broadcastGames() {
 
 		info := b.modifyGameInfo(g)
 
+		// Send to broadcast address for LAN clients
 		_, err := b.conn.Send(b.broadcastAddr, &info)
 		if err != nil {
 			slog.Debug("failed to broadcast game",
 				"game", info.GameName,
 				"error", err,
 			)
+		}
 
-			continue
+		// Also send to localhost for WC3 on same machine
+		_, err = b.conn.Send(b.localhostAddr, &info)
+		if err != nil {
+			slog.Debug("failed to send game to localhost",
+				"game", info.GameName,
+				"error", err,
+			)
 		}
 
 		// Send RefreshGame after GameInfo to update player counts
@@ -155,6 +165,14 @@ func (b *Broadcaster) sendRefreshGame(g *game.Game) {
 			"error", err,
 		)
 	}
+
+	_, err = b.conn.Send(b.localhostAddr, refresh)
+	if err != nil {
+		slog.Debug("failed to send refresh to localhost",
+			"game", g.Info.GameName,
+			"error", err,
+		)
+	}
 }
 
 // sendDecreateGame sends a DecreateGame packet to notify game removal.
@@ -166,6 +184,14 @@ func (b *Broadcaster) sendDecreateGame(hostCounter uint32) {
 	_, err := b.conn.Send(b.broadcastAddr, decreate)
 	if err != nil {
 		slog.Debug("failed to send decreate",
+			"hostCounter", hostCounter,
+			"error", err,
+		)
+	}
+
+	_, err = b.conn.Send(b.localhostAddr, decreate)
+	if err != nil {
+		slog.Debug("failed to send decreate to localhost",
 			"hostCounter", hostCounter,
 			"error", err,
 		)
