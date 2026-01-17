@@ -24,12 +24,13 @@ const writeBufferSize = 64 * 1024
 // Broadcaster periodically broadcasts remote games to the local LAN.
 // Unlike UDPAdvertiser, it doesn't bind to port 6112 - it just sends.
 type Broadcaster struct {
-	conn          *network.W3GSPacketConn
-	games         []game.Game
-	proxyPort     uint16
-	showPeerNames bool
-	broadcastAddr *net.UDPAddr
-	mu            sync.RWMutex
+	conn             *network.W3GSPacketConn
+	games            []game.Game
+	previousGameKeys map[string]uint32 // game key -> HostCounter for tracking removed games
+	proxyPort        uint16
+	showPeerNames    bool
+	broadcastAddr    *net.UDPAddr
+	mu               sync.RWMutex
 }
 
 // NewBroadcaster creates a new broadcaster.
@@ -47,9 +48,10 @@ func NewBroadcaster(proxyPort uint16, showPeerNames bool) (*Broadcaster, error) 
 	}
 
 	b := &Broadcaster{
-		proxyPort:     proxyPort,
-		showPeerNames: showPeerNames,
-		broadcastAddr: &net.UDPAddr{IP: net.IPv4bcast, Port: DefaultPort},
+		proxyPort:        proxyPort,
+		showPeerNames:    showPeerNames,
+		broadcastAddr:    &net.UDPAddr{IP: net.IPv4bcast, Port: DefaultPort},
+		previousGameKeys: make(map[string]uint32),
 	}
 
 	// Wrap in W3GSPacketConn for proper packet encoding
@@ -87,18 +89,24 @@ func (b *Broadcaster) Close() error {
 	return b.conn.Close()
 }
 
-// broadcastGames sends GameInfo for all remote games.
+// broadcastGames sends GameInfo and RefreshGame for all remote games,
+// and DecreateGame for any games that have been removed.
 func (b *Broadcaster) broadcastGames() {
-	b.mu.RLock()
-	games := b.games
-	b.mu.RUnlock()
+	b.mu.Lock()
+	defer b.mu.Unlock()
 
-	for i := range games {
-		g := &games[i]
+	currentKeys := make(map[string]uint32)
+
+	// Broadcast current remote games
+	for i := range b.games {
+		g := &b.games[i]
 
 		if g.Source != game.SourceRemote {
 			continue
 		}
+
+		key := g.Key()
+		currentKeys[key] = g.Info.HostCounter
 
 		info := b.modifyGameInfo(g)
 
@@ -108,7 +116,59 @@ func (b *Broadcaster) broadcastGames() {
 				"game", info.GameName,
 				"error", err,
 			)
+
+			continue
 		}
+
+		// Send RefreshGame after GameInfo to update player counts
+		b.sendRefreshGame(g)
+	}
+
+	// Send DecreateGame for any games that were removed
+	for key, hostCounter := range b.previousGameKeys {
+		if _, exists := currentKeys[key]; !exists {
+			b.sendDecreateGame(hostCounter)
+
+			slog.Debug("sent game cancellation",
+				"key", key,
+				"hostCounter", hostCounter,
+			)
+		}
+	}
+
+	// Update tracked games for next iteration
+	b.previousGameKeys = currentKeys
+}
+
+// sendRefreshGame sends a RefreshGame packet to update player counts.
+func (b *Broadcaster) sendRefreshGame(g *game.Game) {
+	refresh := &w3gs.RefreshGame{
+		HostCounter:    g.Info.HostCounter,
+		SlotsUsed:      g.Info.SlotsUsed,
+		SlotsAvailable: g.Info.SlotsAvailable,
+	}
+
+	_, err := b.conn.Send(b.broadcastAddr, refresh)
+	if err != nil {
+		slog.Debug("failed to send refresh",
+			"game", g.Info.GameName,
+			"error", err,
+		)
+	}
+}
+
+// sendDecreateGame sends a DecreateGame packet to notify game removal.
+func (b *Broadcaster) sendDecreateGame(hostCounter uint32) {
+	decreate := &w3gs.DecreateGame{
+		HostCounter: hostCounter,
+	}
+
+	_, err := b.conn.Send(b.broadcastAddr, decreate)
+	if err != nil {
+		slog.Debug("failed to send decreate",
+			"hostCounter", hostCounter,
+			"error", err,
+		)
 	}
 }
 
