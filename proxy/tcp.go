@@ -36,11 +36,12 @@ type TCPProxy struct {
 
 // NewTCPProxy creates a new TCP proxy.
 func NewTCPProxy(ctx context.Context, registry *game.Registry) (*TCPProxy, error) {
-	// Listen on localhost with a random available port.
-	// Using localhost is more secure than binding to all interfaces.
+	// Listen on all interfaces with a random available port.
+	// This is required because WC3 connects to the source IP of the UDP broadcast,
+	// which is the LAN interface, not localhost.
 	lc := &net.ListenConfig{}
 
-	listener, err := lc.Listen(ctx, "tcp", "127.0.0.1:0")
+	listener, err := lc.Listen(ctx, "tcp", "0.0.0.0:0")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create TCP listener: %w", err)
 	}
