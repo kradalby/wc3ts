@@ -87,14 +87,24 @@ func (m Model) View() string {
 
 	if len(m.logs) == 0 {
 		b.WriteString(s.logLine.Render("  (no logs yet)"))
+		b.WriteString("\n")
 	} else {
-		for _, line := range m.logs {
+		// Show only the last logHeight lines (or maxLogLines if logHeight not set)
+		displayLines := m.logHeight
+		if displayLines <= 0 || displayLines > maxLogLines {
+			displayLines = maxLogLines
+		}
+
+		startIdx := 0
+		if len(m.logs) > displayLines {
+			startIdx = len(m.logs) - displayLines
+		}
+
+		for _, line := range m.logs[startIdx:] {
 			b.WriteString(s.logLine.Render("  " + line))
 			b.WriteString("\n")
 		}
 	}
-
-	b.WriteString("\n")
 
 	// Warning (if any)
 	if m.warning != "" {
@@ -108,7 +118,15 @@ func (m Model) View() string {
 	b.WriteString("\n")
 
 	// Help
-	help := s.help.Render("q: quit")
+	focusIndicator := "peers"
+	if m.focus == FocusGames {
+		focusIndicator = "games"
+	}
+
+	help := s.help.Render(fmt.Sprintf(
+		"↑/↓: navigate | tab: switch (%s) | [/]: version | s: sort by games | q: quit",
+		focusIndicator,
+	))
 	b.WriteString(help)
 
 	return b.String()
@@ -120,7 +138,7 @@ func (m Model) versionString() string {
 		return "[detecting version...]"
 	}
 
-	return fmt.Sprintf("[%s v%d]", m.version.Product.String(), m.version.Version)
+	return fmt.Sprintf("[%s 1.%d]", m.version.Product.String(), m.version.Version)
 }
 
 // statusBar returns the status bar content.

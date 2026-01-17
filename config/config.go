@@ -2,6 +2,9 @@
 package config
 
 import (
+	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/nielsAD/gowarcraft3/protocol/w3gs"
@@ -13,8 +16,9 @@ const (
 	DefaultRefreshInterval = 3 * time.Second
 	DefaultGameTimeout     = 10 * time.Second
 
-	// DefaultGameVersion is TFT 1.28 - common for LAN parties.
-	DefaultGameVersion = 10028
+	// DefaultGameVersion is TFT 1.26 - common for classic WC3 LAN parties.
+	// Classic WC3 versions: 26 (1.26), 27 (1.27), 28 (1.28).
+	DefaultGameVersion = 26
 )
 
 // Config holds the configuration for the WC3 Tailscale proxy.
@@ -48,4 +52,32 @@ func Default() *Config {
 		GameTimeout:     DefaultGameTimeout,
 		ShowPeerNames:   true,
 	}
+}
+
+// ParseVersion parses a version string like "1.26", "26", or "1.28" into uint32.
+// Accepts formats: "1.26" -> 26, "26" -> 26, "1.28" -> 28.
+func ParseVersion(s string) (uint32, error) {
+	s = strings.TrimSpace(s)
+
+	// Handle "1.XX" format
+	if after, found := strings.CutPrefix(s, "1."); found {
+		s = after
+	}
+
+	v, err := strconv.ParseUint(s, 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("invalid version %q: %w", s, err)
+	}
+
+	return uint32(v), nil
+}
+
+// FormatVersion formats a version number as "1.XX".
+func FormatVersion(v uint32) string {
+	return fmt.Sprintf("1.%d", v)
+}
+
+// SupportedVersions returns the list of supported WC3 versions.
+func SupportedVersions() []uint32 {
+	return []uint32{26, 27, 28}
 }

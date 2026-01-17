@@ -11,34 +11,55 @@ import (
 	"github.com/nielsAD/gowarcraft3/protocol/w3gs"
 )
 
-// Table column widths.
+// Table column widths and layout constants.
 const (
 	colWidthName    = 20
-	colWidthIP      = 15
+	colWidthIP      = 16
 	colWidthStatus  = 10
+	colWidthGames   = 8
 	colWidthGame    = 30
 	colWidthHost    = 15
 	colWidthPlayers = 10
 	colWidthSource  = 10
-	tableHeight     = 5
+	minTableHeight  = 3
+	minLogHeight    = 3
 	maxLogLines     = 10
+	// fixedUIHeight accounts for title, headers, status bar, help, and spacing.
+	fixedUIHeight = 11
+	// Layout percentages for splitting available height.
+	peerTablePct = 35
+	gameTablePct = 35
+	logAreaPct   = 30
+)
+
+// FocusedPanel indicates which panel has focus.
+type FocusedPanel int
+
+// Focus panel constants.
+const (
+	FocusPeers FocusedPanel = iota
+	FocusGames
 )
 
 // Model is the Bubble Tea model for the TUI.
 type Model struct {
 	peers        []tailscale.Peer
 	games        []game.Game
+	peerGames    map[string]int // IP -> game count
 	version      w3gs.GameVersion
 	buildVersion version.Info
 	proxyPort    int
 	peerTable    table.Model
 	gameTable    table.Model
 	logs         []string
+	logHeight    int // calculated log area height
 	width        int
 	height       int
 	ready        bool
 	quitting     bool
 	warning      string
+	focus        FocusedPanel
+	versionCb    func(uint32) // callback to notify version changes
 }
 
 // PeersMsg is sent when the peer list changes.
@@ -72,11 +93,13 @@ type PortMsg struct {
 }
 
 // NewModel creates a new TUI model.
-func NewModel(proxyPort int, gameVersion w3gs.GameVersion, buildVersion version.Info) Model {
+// The versionCb callback is called when the user changes the game version.
+func NewModel(proxyPort int, gameVersion w3gs.GameVersion, buildVersion version.Info, versionCb func(uint32)) Model {
 	peerColumns := []table.Column{
 		{Title: "Name", Width: colWidthName},
 		{Title: "IP", Width: colWidthIP},
 		{Title: "Status", Width: colWidthStatus},
+		{Title: "Games", Width: colWidthGames},
 	}
 
 	gameColumns := []table.Column{
@@ -89,15 +112,15 @@ func NewModel(proxyPort int, gameVersion w3gs.GameVersion, buildVersion version.
 	peerTable := table.New(
 		table.WithColumns(peerColumns),
 		table.WithRows([]table.Row{}),
-		table.WithFocused(false),
-		table.WithHeight(tableHeight),
+		table.WithFocused(true), // Start with peers focused
+		table.WithHeight(minTableHeight),
 	)
 
 	gameTable := table.New(
 		table.WithColumns(gameColumns),
 		table.WithRows([]table.Row{}),
 		table.WithFocused(false),
-		table.WithHeight(tableHeight),
+		table.WithHeight(minTableHeight),
 	)
 
 	// Apply styles
@@ -118,12 +141,15 @@ func NewModel(proxyPort int, gameVersion w3gs.GameVersion, buildVersion version.
 	return Model{
 		peers:        make([]tailscale.Peer, 0),
 		games:        make([]game.Game, 0),
+		peerGames:    make(map[string]int),
 		version:      gameVersion,
 		buildVersion: buildVersion,
 		proxyPort:    proxyPort,
 		peerTable:    peerTable,
 		gameTable:    gameTable,
 		logs:         make([]string, 0, maxLogLines),
+		focus:        FocusPeers,
+		versionCb:    versionCb,
 	}
 }
 
