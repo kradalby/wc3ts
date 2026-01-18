@@ -144,7 +144,7 @@ func (a *app) initServices(ctx context.Context) error {
 	// Create LAN broadcaster (uses ephemeral port, doesn't conflict with WC3)
 	proxyPort := safeUint16(a.tcpProxy.Port())
 
-	a.broadcaster, err = lan.NewBroadcaster(proxyPort, a.cfg.ShowPeerNames)
+	a.broadcaster, err = lan.NewBroadcaster(proxyPort)
 	if err != nil {
 		return err
 	}
