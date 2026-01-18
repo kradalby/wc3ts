@@ -19,9 +19,11 @@ import (
 // DefaultProbeInterval is how often to probe peers for games.
 const DefaultProbeInterval = 5 * time.Second
 
+// udpBufferSize is the size of the UDP receive buffer.
+const udpBufferSize = 512
+
 // Manager probes Tailscale peers to discover remote WC3 games.
 type Manager struct {
-	network.EventEmitter
 	network.W3GSPacketConn
 
 	discovery     *tailscale.Discovery
@@ -58,12 +60,8 @@ func NewManager(
 // Run starts probing peers for games.
 // It blocks until the context is cancelled.
 func (m *Manager) Run(ctx context.Context) error {
-	m.initHandlers()
-
-	// Start packet receiving in background
-	go func() {
-		_ = m.W3GSPacketConn.Run(&m.EventEmitter, 0)
-	}()
+	// Start packet receiving in background (captures raw bytes)
+	go m.receiveLoop()
 
 	// Probe peers periodically
 	ticker := time.NewTicker(m.probeInterval)
@@ -99,9 +97,34 @@ func (m *Manager) OnPeersChanged(peers []tailscale.Peer) {
 	m.probeAllPeers()
 }
 
-// initHandlers sets up packet handlers.
-func (m *Manager) initHandlers() {
-	m.On(&w3gs.GameInfo{}, m.onGameInfo)
+// receiveLoop reads raw UDP packets and processes them.
+func (m *Manager) receiveLoop() {
+	buf := make([]byte, udpBufferSize)
+
+	for {
+		n, addr, err := m.Conn().ReadFrom(buf)
+		if err != nil {
+			return
+		}
+
+		// Copy raw bytes before any processing
+		rawData := make([]byte, n)
+		copy(rawData, buf[:n])
+
+		// Deserialize using gowarcraft3 for display/debug purposes
+		pkt, _, err := w3gs.Deserialize(rawData, w3gs.Encoding{})
+		if err != nil {
+			continue
+		}
+
+		// Only handle GameInfo packets
+		info, ok := pkt.(*w3gs.GameInfo)
+		if !ok {
+			continue
+		}
+
+		m.handleGameInfo(info, rawData, addr)
+	}
 }
 
 // probeAllPeers sends SearchGame to all known peers and localhost.
@@ -168,19 +191,8 @@ func (m *Manager) probePeer(peerIP netip.Addr, version w3gs.GameVersion) {
 	}
 }
 
-// onGameInfo handles GameInfo packets from local WC3 or remote peers.
-func (m *Manager) onGameInfo(ev *network.Event) {
-	pkt, ok := ev.Arg.(*w3gs.GameInfo)
-	if !ok {
-		return
-	}
-
-	// Get source address
-	addr, ok := ev.Opt[0].(net.Addr)
-	if !ok {
-		return
-	}
-
+// handleGameInfo processes a GameInfo packet with its raw bytes.
+func (m *Manager) handleGameInfo(pkt *w3gs.GameInfo, rawData []byte, addr net.Addr) {
 	udpAddr, ok := addr.(*net.UDPAddr)
 	if !ok {
 		return
@@ -196,12 +208,17 @@ func (m *Manager) onGameInfo(ev *network.Event) {
 
 	var peerName string
 
+	var gameRawData []byte
+
 	if peerIP.IsLoopback() {
 		source = game.SourceLocal
 		peerName = "local"
+		// Don't store raw data for local games (we don't forward them)
 	} else {
 		source = game.SourceRemote
 		peerName = m.findPeerName(peerIP)
+		// Store raw data for remote games (for forwarding)
+		gameRawData = rawData
 	}
 
 	slog.Debug("discovered game",
@@ -214,6 +231,7 @@ func (m *Manager) onGameInfo(ev *network.Event) {
 
 	m.registry.Add(game.Game{
 		Info:     *pkt,
+		RawData:  gameRawData,
 		Source:   source,
 		PeerIP:   peerIP,
 		PeerName: peerName,
