@@ -19,8 +19,12 @@ const (
 
 // Game represents a discovered WC3 game.
 type Game struct {
-	// Info contains the WC3 game information.
+	// Info contains the WC3 game information (parsed for display).
 	Info w3gs.GameInfo
+
+	// RawData contains the original packet bytes for forwarding.
+	// Only set for remote games.
+	RawData []byte
 
 	// Source indicates where this game was discovered.
 	Source Source
