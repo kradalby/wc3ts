@@ -1,0 +1,22 @@
+# Binaries
+/wc3ts
+*.exe
+
+# Dependencies
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary reference implementations (delete after development)
+temp_*/
+
+# Build artifacts
+dist/

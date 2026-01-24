@@ -1,0 +1,65 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: all
+  enable:
+    - wsl_v5           # Whitespace linter v5
+
+  disable:
+    # Too strict for this project
+    - wrapcheck        # Requires wrapping all errors
+    - exhaustruct      # Requires all struct fields
+    - ireturn          # Forbids returning interfaces
+    - varnamelen       # Too strict on variable names
+    - godox            # Forbids TODO/FIXME comments
+
+    # Deprecated, replaced by wsl_v5
+    - wsl
+
+    # Not applicable
+    - depguard         # Need to configure allowed packages
+
+  settings:
+    wsl_v5:
+      allow-first-in-block: true
+      allow-whole-block: false
+      branch-max-lines: 2
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: error-return
+        - name: error-strings
+        - name: exported
+    cyclop:
+      max-complexity: 15
+    gocognit:
+      min-complexity: 20
+    funlen:
+      lines: 100
+      statements: 50
+    lll:
+      line-length: 120
+
+  exclusions:
+    generated: strict
+    rules:
+      - path: _test\.go
+        linters:
+          - funlen
+          - gocognit
+          - cyclop
+
+formatters:
+  enable:
+    - gofumpt
+
+  settings:
+    gofumpt:
+      extra-rules: true
+
+issues:
+  exclude-use-default: false
