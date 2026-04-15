@@ -16,17 +16,17 @@
         pkgs = nixpkgs.legacyPackages.${system};
       in
       {
-        packages.default = pkgs.buildGoModule {
+        packages.default = (pkgs.buildGoModule.override { go = pkgs.go_1_26; }) {
           pname = "wc3ts";
           version = "0.0.1";
           src = ./.;
-          vendorHash = null;
+          vendorHash = "sha256-6L/joCTHdAr+f/5nrsptbEKZFrkJQfVEbpi/W1OBO5c=";
         };
 
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             # Go
-            go
+            go_1_26
 
             # Linting and Formatting
             golangci-lint
