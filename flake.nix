@@ -20,7 +20,7 @@
           pname = "wc3ts";
           version = "0.0.1";
           src = ./.;
-          vendorHash = "sha256-6L/joCTHdAr+f/5nrsptbEKZFrkJQfVEbpi/W1OBO5c=";
+          vendorHash = "sha256-8rctyRQ539PEoxbz7RL6UvYRWHC9Z5Kr0oHKOPfNp5U=";
         };
 
         devShells.default = pkgs.mkShell {
