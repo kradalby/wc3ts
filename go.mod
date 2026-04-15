@@ -1,6 +1,6 @@
 module github.com/kradalby/wc3ts
 
-go 1.25.5
+go 1.26.1
 
 require (
 	github.com/charmbracelet/bubbles v1.0.0
@@ -8,11 +8,11 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/nielsAD/gowarcraft3 v1.7.1
 	github.com/peterbourgon/ff/v3 v3.4.0
-	tailscale.com v1.94.0
+	tailscale.com v1.96.5
 )
 
 require (
-	filippo.io/edwards25519 v1.1.0 // indirect
+	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/akutz/memconn v0.1.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
