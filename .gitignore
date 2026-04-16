@@ -20,3 +20,5 @@ temp_*/
 
 # Build artifacts
 dist/
+/result
+/result-*
