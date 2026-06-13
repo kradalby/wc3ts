@@ -34,6 +34,9 @@ const byteShift16 = 16
 // byteShift24 is the bit shift for the fourth byte of a uint32.
 const byteShift24 = 24
 
+// byteMask masks the low 8 bits when serialising integers to bytes.
+const byteMask = 0xFF
+
 // Broadcaster periodically broadcasts remote games to the local LAN.
 // It forwards raw packet bytes with only the port modified.
 type Broadcaster struct {
@@ -147,8 +150,8 @@ func (b *Broadcaster) sendRawGameInfo(g *game.Game) {
 
 	// Modify port at last 2 bytes (little-endian uint16)
 	portIdx := len(data) - portFieldSize
-	data[portIdx] = byte(b.proxyPort)
-	data[portIdx+1] = byte(b.proxyPort >> byteShift8)
+	data[portIdx] = byte(b.proxyPort & byteMask)
+	data[portIdx+1] = byte((b.proxyPort >> byteShift8) & byteMask)
 
 	// Only send to broadcast address - sending to both broadcast and localhost
 	// causes WC3 to show duplicate games
@@ -168,12 +171,12 @@ func (b *Broadcaster) sendRawGameInfo(g *game.Game) {
 func (b *Broadcaster) sendRefreshGame(hostCounter, slotsUsed, slotsAvailable uint32) {
 	packet := []byte{
 		0xF7, 0x32, 0x10, 0x00, // Header: magic, opcode, length=16
-		byte(hostCounter), byte(hostCounter >> byteShift8),
-		byte(hostCounter >> byteShift16), byte(hostCounter >> byteShift24),
-		byte(slotsUsed), byte(slotsUsed >> byteShift8),
-		byte(slotsUsed >> byteShift16), byte(slotsUsed >> byteShift24),
-		byte(slotsAvailable), byte(slotsAvailable >> byteShift8),
-		byte(slotsAvailable >> byteShift16), byte(slotsAvailable >> byteShift24),
+		byte(hostCounter & byteMask), byte((hostCounter >> byteShift8) & byteMask),
+		byte((hostCounter >> byteShift16) & byteMask), byte((hostCounter >> byteShift24) & byteMask),
+		byte(slotsUsed & byteMask), byte((slotsUsed >> byteShift8) & byteMask),
+		byte((slotsUsed >> byteShift16) & byteMask), byte((slotsUsed >> byteShift24) & byteMask),
+		byte(slotsAvailable & byteMask), byte((slotsAvailable >> byteShift8) & byteMask),
+		byte((slotsAvailable >> byteShift16) & byteMask), byte((slotsAvailable >> byteShift24) & byteMask),
 	}
 
 	_, err := b.conn.WriteTo(packet, b.broadcastAddr)
@@ -186,8 +189,8 @@ func (b *Broadcaster) sendRefreshGame(hostCounter, slotsUsed, slotsAvailable uin
 func (b *Broadcaster) sendDecreateGame(hostCounter uint32) {
 	packet := []byte{
 		0xF7, 0x33, 0x08, 0x00, // Header: magic, opcode, length=8
-		byte(hostCounter), byte(hostCounter >> byteShift8),
-		byte(hostCounter >> byteShift16), byte(hostCounter >> byteShift24),
+		byte(hostCounter & byteMask), byte((hostCounter >> byteShift8) & byteMask),
+		byte((hostCounter >> byteShift16) & byteMask), byte((hostCounter >> byteShift24) & byteMask),
 	}
 
 	_, err := b.conn.WriteTo(packet, b.broadcastAddr)

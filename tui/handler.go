@@ -61,7 +61,7 @@ func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 		b.WriteString(" ")
 		b.WriteString(a.Key)
 		b.WriteString("=")
-		b.WriteString(fmt.Sprintf("%v", a.Value.Any()))
+		fmt.Fprintf(&b, "%v", a.Value.Any())
 
 		return true
 	})
@@ -71,7 +71,7 @@ func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 		b.WriteString(" ")
 		b.WriteString(a.Key)
 		b.WriteString("=")
-		b.WriteString(fmt.Sprintf("%v", a.Value.Any()))
+		fmt.Fprintf(&b, "%v", a.Value.Any())
 	}
 
 	h.program.Send(LogMsg{Message: b.String()})
