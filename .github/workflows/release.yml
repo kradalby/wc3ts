@@ -8,22 +8,26 @@ on:
 permissions:
   contents: write
 
+defaults:
+  run:
+    shell: nix develop --command bash -e {0}
+
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
 
       - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
+        uses: NixOS/nix-installer-action@main
 
-      - name: Setup Nix cache
-        uses: DeterminateSystems/magic-nix-cache-action@main
+      - name: Setup Nix cache (hestia)
+        uses: Mic92/hestia/action@main
 
       - name: Run GoReleaser
-        run: nix develop --command goreleaser release --clean
+        run: goreleaser release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
