@@ -2,25 +2,41 @@
   inputs = {
     nixpkgs.url = "nixpkgs/nixpkgs-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    flake-checks.url = "github:kradalby/flake-checks";
+    flake-checks.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs =
     { self
     , nixpkgs
     , flake-utils
+    , flake-checks
     , ...
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-      in
-      {
-        packages.default = (pkgs.buildGoModule.override { go = pkgs.go_1_26; }) {
+        fc = flake-checks.lib;
+        common = {
+          inherit pkgs;
+          root = ./.;
           pname = "wc3ts";
           version = "0.0.1";
-          src = ./.;
           vendorHash = "sha256-8rctyRQ539PEoxbz7RL6UvYRWHC9Z5Kr0oHKOPfNp5U=";
+          goPkg = pkgs.go_1_26;
+        };
+      in
+      {
+        packages.default = fc.goBuild common;
+
+        formatter = fc.formatter common;
+
+        checks = {
+          build = fc.goBuild common;
+          gotest = fc.goTest common;
+          golangci-lint = fc.goLint common;
+          formatting = fc.goFormat common;
         };
 
         devShells.default = pkgs.mkShell {
@@ -31,6 +47,7 @@
             # Linting and Formatting
             golangci-lint
             gofumpt
+            gotools # provides goimports
             golines
             nixpkgs-fmt
 

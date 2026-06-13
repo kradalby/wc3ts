@@ -8,28 +8,12 @@ on:
     branches:
       - main
 
-# Every `run:` step executes inside `nix develop`, so tools (go, golangci-lint,
-# goreleaser) come straight from the flake devShell with no per-step prefix.
-defaults:
-  run:
-    shell: nix develop --command bash -e {0}
+# Gate jobs only call `nix build .#checks.<sys>.<name>`, so no `nix develop`
+# default shell is needed. The check logic lives in flake.nix.
+permissions:
+  contents: read
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-
-      - name: Install Nix
-        uses: NixOS/nix-installer-action@6b8548fe06acfb0155a50ab5d561accb215764cc # main
-
-      - name: Setup Nix cache (hestia)
-        uses: Mic92/hestia/action@ff07bb902a9968ac0c3d0e51d90a606662a375d8 # main
-
-      - name: Run golangci-lint
-        run: golangci-lint run ./...
-
   build:
     runs-on: ubuntu-latest
     steps:
@@ -42,10 +26,10 @@ jobs:
       - name: Setup Nix cache (hestia)
         uses: Mic92/hestia/action@ff07bb902a9968ac0c3d0e51d90a606662a375d8 # main
 
-      - name: Build
-        run: go build -o wc3ts ./cmd/wc3ts
+      - name: build
+        run: nix build -L .#checks.x86_64-linux.build
 
-  test:
+  gotest:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -57,11 +41,46 @@ jobs:
       - name: Setup Nix cache (hestia)
         uses: Mic92/hestia/action@ff07bb902a9968ac0c3d0e51d90a606662a375d8 # main
 
-      - name: Run tests
-        run: go test -v ./...
+      - name: gotest
+        run: nix build -L .#checks.x86_64-linux.gotest
 
+  golangci-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Install Nix
+        uses: NixOS/nix-installer-action@6b8548fe06acfb0155a50ab5d561accb215764cc # main
+
+      - name: Setup Nix cache (hestia)
+        uses: Mic92/hestia/action@ff07bb902a9968ac0c3d0e51d90a606662a375d8 # main
+
+      - name: golangci-lint
+        run: nix build -L .#checks.x86_64-linux.golangci-lint
+
+  formatting:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Install Nix
+        uses: NixOS/nix-installer-action@6b8548fe06acfb0155a50ab5d561accb215764cc # main
+
+      - name: Setup Nix cache (hestia)
+        uses: Mic92/hestia/action@ff07bb902a9968ac0c3d0e51d90a606662a375d8 # main
+
+      - name: formatting
+        run: nix build -L .#checks.x86_64-linux.formatting
+
+  # ── Release-tooling lanes (not flake checks: goreleaser needs git history,
+  #    GITHUB_TOKEN, and pushes a pre-release). Kept on the nix develop shell. ──
   goreleaser-check:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: nix develop --command bash -e {0}
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -83,9 +102,12 @@ jobs:
   pre-release:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [lint, build, test]
+    needs: [build, gotest, golangci-lint, formatting]
     permissions:
       contents: write
+    defaults:
+      run:
+        shell: nix develop --command bash -e {0}
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
