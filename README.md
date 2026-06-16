@@ -45,6 +45,44 @@ make build   # Build the binary
 go build -o wc3ts ./cmd/wc3ts
 ```
 
+## Icons & desktop integration
+
+`wc3ts` is a terminal application: it runs inside whatever terminal you launch it
+from. On every OS the taskbar/dock icon belongs to that **terminal emulator**, so
+a TUI cannot show its own icon in the taskbar/dock while running. What the
+releases *do* ship is best-effort desktop integration so the app and its launchers
+look right:
+
+- **Windows** – the icon is embedded in `wc3ts.exe`, so it shows in Explorer and
+  on shortcuts you pin to the taskbar/Start menu. (A running console window under
+  Windows Terminal still shows the terminal's icon.)
+- **Linux** – the `.deb`/`.rpm` packages install a `wc3ts.desktop` launcher and
+  themed hicolor icons, so `wc3ts` appears with its icon in application menus:
+
+  ```bash
+  sudo dpkg -i wc3ts_*_linux_amd64.deb   # Debian/Ubuntu
+  sudo rpm -i  wc3ts_*_linux_amd64.rpm   # Fedora/RHEL
+  ```
+
+  The plain `.tar.gz` is just the binary; use a package for menu/icon integration.
+- **macOS** – each release includes an unsigned `wc3ts_*_darwin_*.app.zip`. The
+  `.app` gives Finder and the Dock a recognizable icon. Because it is unsigned,
+  Gatekeeper quarantines it (right-click → Open the first time), and because
+  `wc3ts` is a terminal UI the bundle is cosmetic — run `./wc3ts` from a terminal
+  for actual use.
+
+### Regenerating the icons
+
+The icon artifacts (`assets/icons/wc3ts.{ico,icns}`, the hicolor PNGs, and the
+Windows `.syso` resources) are generated from `assets/icons/icon-source.png` and
+committed. To regenerate after changing the art:
+
+```bash
+nix develop --command make icons
+```
+
+This needs ImageMagick, libicns and Go, all provided by the dev shell.
+
 ## Usage
 
 1. Start `wc3ts` on all machines in your Tailscale network
