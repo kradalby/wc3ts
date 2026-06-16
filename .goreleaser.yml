@@ -24,6 +24,11 @@ builds:
       - -X main.version={{.Version}}
       - -X main.commit={{.Commit}}
       - -X main.date={{.Date}}
+    # Wrap each darwin binary in a minimal .app bundle (icon only). The script is
+    # a no-op for non-darwin targets, so it is safe to run for every build.
+    hooks:
+      post:
+        - bash packaging/macos/make-app-bundle.sh "{{ .Path }}" "{{ .Os }}" "{{ .Arch }}" "{{ .Version }}"
 
 archives:
   - id: default
@@ -38,6 +43,46 @@ archives:
       {{- .Version }}_
       {{- .Os }}_
       {{- .Arch }}
+
+# Linux packages: bake the binary plus the .desktop launcher and hicolor icons
+# into FHS paths so the app shows up (with its icon) in menus after install.
+nfpms:
+  - id: wc3ts
+    package_name: wc3ts
+    ids:
+      - wc3ts
+    vendor: Kristoffer Dalby
+    homepage: https://github.com/kradalby/wc3ts
+    maintainer: Kristoffer Dalby <kristoffer@dalby.cc>
+    description: Warcraft III LAN game proxy over Tailscale
+    license: BSD-3-Clause
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/bin
+    contents:
+      - src: packaging/linux/wc3ts.desktop
+        dst: /usr/share/applications/wc3ts.desktop
+      - src: assets/icons/hicolor/16x16/apps/wc3ts.png
+        dst: /usr/share/icons/hicolor/16x16/apps/wc3ts.png
+      - src: assets/icons/hicolor/22x22/apps/wc3ts.png
+        dst: /usr/share/icons/hicolor/22x22/apps/wc3ts.png
+      - src: assets/icons/hicolor/24x24/apps/wc3ts.png
+        dst: /usr/share/icons/hicolor/24x24/apps/wc3ts.png
+      - src: assets/icons/hicolor/32x32/apps/wc3ts.png
+        dst: /usr/share/icons/hicolor/32x32/apps/wc3ts.png
+      - src: assets/icons/hicolor/48x48/apps/wc3ts.png
+        dst: /usr/share/icons/hicolor/48x48/apps/wc3ts.png
+      - src: assets/icons/hicolor/64x64/apps/wc3ts.png
+        dst: /usr/share/icons/hicolor/64x64/apps/wc3ts.png
+      - src: assets/icons/hicolor/128x128/apps/wc3ts.png
+        dst: /usr/share/icons/hicolor/128x128/apps/wc3ts.png
+      - src: assets/icons/hicolor/256x256/apps/wc3ts.png
+        dst: /usr/share/icons/hicolor/256x256/apps/wc3ts.png
+      - src: assets/icons/hicolor/512x512/apps/wc3ts.png
+        dst: /usr/share/icons/hicolor/512x512/apps/wc3ts.png
+    scripts:
+      postinstall: packaging/linux/postinstall.sh
 
 checksum:
   name_template: "checksums.txt"
@@ -58,3 +103,7 @@ release:
     name: wc3ts
   prerelease: auto
   draft: false
+  # The unsigned macOS .app bundles (icon wrappers) are assembled by the build
+  # post-hook into dist/; attach them to the release.
+  extra_files:
+    - glob: dist/*.app.zip
