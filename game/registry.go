@@ -35,7 +35,8 @@ func (r *Registry) Add(game Game) bool {
 
 	if !exists {
 		game.FirstSeen = time.Now()
-		slog.Debug("adding new game to registry",
+		slog.Debug(
+			"adding new game to registry",
 			"key", key,
 			"name", game.Info.GameName,
 			"hostCounter", game.Info.HostCounter,

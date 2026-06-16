@@ -213,7 +213,8 @@ func (m Model) viewPeerDetail(s styles) string {
 		content.WriteString("\n")
 
 		for _, g := range peerGames {
-			gameLine := fmt.Sprintf("  - %s (%d/%d players)",
+			gameLine := fmt.Sprintf(
+				"  - %s (%d/%d players)",
 				g.Info.GameName,
 				g.Info.SlotsUsed,
 				g.Info.SlotsTotal,

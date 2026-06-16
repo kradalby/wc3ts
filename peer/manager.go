@@ -189,7 +189,8 @@ func (m *Manager) probePeer(peerIP netip.Addr, version w3gs.GameVersion) {
 
 	_, err := m.Send(addr, pkt)
 	if err != nil {
-		slog.Debug("failed to probe peer",
+		slog.Debug(
+			"failed to probe peer",
 			"peer", peerIP,
 			"error", err,
 		)
@@ -224,7 +225,8 @@ func (m *Manager) handleGameInfo(pkt *w3gs.GameInfo, rawData []byte, addr net.Ad
 	// Always store raw data - needed for responder to send exact packets
 	gameRawData := rawData
 
-	slog.Debug("discovered game",
+	slog.Debug(
+		"discovered game",
 		"name", pkt.GameName,
 		"hostCounter", pkt.HostCounter,
 		"source", source,

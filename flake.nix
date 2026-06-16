@@ -23,7 +23,7 @@
           root = ./.;
           pname = "wc3ts";
           version = "0.0.1";
-          vendorHash = "sha256-8rctyRQ539PEoxbz7RL6UvYRWHC9Z5Kr0oHKOPfNp5U=";
+          vendorHash = "sha256-NsTuAv433E8zevxrV969PqXRTLwKlF6BSVJjzAWCi94=";
           goPkg = pkgs.go_1_26;
         };
       in

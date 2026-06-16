@@ -102,7 +102,8 @@ func (p *TCPProxy) acceptLoop(ctx context.Context) {
 				return
 			}
 
-			slog.Error("failed to accept connection",
+			slog.Error(
+				"failed to accept connection",
 				"error", err,
 			)
 
@@ -122,14 +123,16 @@ func (p *TCPProxy) handleConnection(ctx context.Context, clientConn net.Conn) {
 		}
 	}()
 
-	slog.Info("received TCP connection",
+	slog.Info(
+		"received TCP connection",
 		"client", clientConn.RemoteAddr(),
 	)
 
 	// Read and parse the initial Join packet
 	joinPkt, initialPacket, err := p.readJoinPacket(clientConn)
 	if err != nil {
-		slog.Error("failed to read Join packet",
+		slog.Error(
+			"failed to read Join packet",
 			"client", clientConn.RemoteAddr(),
 			"error", err,
 		)
@@ -137,7 +140,8 @@ func (p *TCPProxy) handleConnection(ctx context.Context, clientConn net.Conn) {
 		return
 	}
 
-	slog.Info("parsed Join packet",
+	slog.Info(
+		"parsed Join packet",
 		"client", clientConn.RemoteAddr(),
 		"hostCounter", joinPkt.HostCounter,
 		"playerName", joinPkt.PlayerName,
@@ -149,7 +153,8 @@ func (p *TCPProxy) handleConnection(ctx context.Context, clientConn net.Conn) {
 		// Log all remote games for debugging
 		allGames := p.registry.Games()
 		for _, g := range allGames {
-			slog.Info("registry game",
+			slog.Info(
+				"registry game",
 				"name", g.Info.GameName,
 				"hostCounter", g.Info.HostCounter,
 				"source", g.Source,
@@ -157,7 +162,8 @@ func (p *TCPProxy) handleConnection(ctx context.Context, clientConn net.Conn) {
 			)
 		}
 
-		slog.Warn("no remote game found for HostCounter",
+		slog.Warn(
+			"no remote game found for HostCounter",
 			"client", clientConn.RemoteAddr(),
 			"hostCounter", joinPkt.HostCounter,
 		)
@@ -165,7 +171,8 @@ func (p *TCPProxy) handleConnection(ctx context.Context, clientConn net.Conn) {
 		return
 	}
 
-	slog.Info("found remote game",
+	slog.Info(
+		"found remote game",
 		"game", remoteGame.Info.GameName,
 		"hostCounter", remoteGame.Info.HostCounter,
 		"peerIP", remoteGame.PeerIP,
@@ -175,7 +182,8 @@ func (p *TCPProxy) handleConnection(ctx context.Context, clientConn net.Conn) {
 	// Connect to the remote host
 	remoteConn, err := p.connectToRemote(ctx, remoteGame)
 	if err != nil {
-		slog.Error("failed to connect to remote game",
+		slog.Error(
+			"failed to connect to remote game",
 			"game", remoteGame.Info.GameName,
 			"error", err,
 		)
@@ -190,7 +198,8 @@ func (p *TCPProxy) handleConnection(ctx context.Context, clientConn net.Conn) {
 		}
 	}()
 
-	slog.Info("proxying connection",
+	slog.Info(
+		"proxying connection",
 		"client", clientConn.RemoteAddr(),
 		"game", remoteGame.Info.GameName,
 		"hostCounter", joinPkt.HostCounter,
@@ -245,7 +254,8 @@ func (p *TCPProxy) readJoinPacket(conn net.Conn) (*w3gs.Join, []byte, error) {
 		return nil, nil, ErrUnexpectedPacketType
 	}
 
-	slog.Debug("received Join packet",
+	slog.Debug(
+		"received Join packet",
 		"hostCounter", joinPkt.HostCounter,
 		"playerName", joinPkt.PlayerName,
 	)
@@ -279,7 +289,8 @@ func (p *TCPProxy) relay(conn1, conn2 net.Conn) {
 
 		_, err := io.Copy(conn2, conn1)
 		if err != nil && !errors.Is(err, net.ErrClosed) {
-			slog.Debug("relay error (client -> remote)",
+			slog.Debug(
+				"relay error (client -> remote)",
 				"error", err,
 			)
 		}
@@ -296,7 +307,8 @@ func (p *TCPProxy) relay(conn1, conn2 net.Conn) {
 
 		_, err := io.Copy(conn1, conn2)
 		if err != nil && !errors.Is(err, net.ErrClosed) {
-			slog.Debug("relay error (remote -> client)",
+			slog.Debug(
+				"relay error (remote -> client)",
 				"error", err,
 			)
 		}

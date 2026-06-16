@@ -78,7 +78,8 @@ func (r *Responder) onSearchGame(ev *network.Event) {
 	// Get local games and respond with each
 	games := r.registry.LocalGames()
 
-	slog.Debug("received SearchGame query",
+	slog.Debug(
+		"received SearchGame query",
 		"from", addr,
 		"localGames", len(games),
 	)
@@ -88,7 +89,8 @@ func (r *Responder) onSearchGame(ev *network.Event) {
 
 		// Send raw packet data (preserves exact HostCounter)
 		if len(g.RawData) == 0 {
-			slog.Warn("game has no RawData, skipping",
+			slog.Warn(
+				"game has no RawData, skipping",
 				"game", g.Info.GameName,
 			)
 
@@ -97,7 +99,8 @@ func (r *Responder) onSearchGame(ev *network.Event) {
 
 		_, err := r.Conn().WriteTo(g.RawData, udpAddr)
 		if err != nil {
-			slog.Debug("failed to send raw GameInfo response",
+			slog.Debug(
+				"failed to send raw GameInfo response",
 				"game", g.Info.GameName,
 				"to", addr,
 				"error", err,

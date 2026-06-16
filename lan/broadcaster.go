@@ -126,7 +126,8 @@ func (b *Broadcaster) broadcastGames() {
 		if _, exists := currentKeys[key]; !exists {
 			b.sendDecreateGame(hostCounter)
 
-			slog.Debug("sent game cancellation",
+			slog.Debug(
+				"sent game cancellation",
 				"key", key,
 				"hostCounter", hostCounter,
 			)
@@ -160,7 +161,8 @@ func (b *Broadcaster) sendRawGameInfo(g *game.Game) {
 		slog.Debug("failed to broadcast game", "game", g.Info.GameName, "error", err)
 	}
 
-	slog.Debug("broadcast game",
+	slog.Debug(
+		"broadcast game",
 		"name", g.Info.GameName,
 		"hostCounter", g.Info.HostCounter,
 		"proxyPort", b.proxyPort,
