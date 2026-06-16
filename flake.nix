@@ -89,6 +89,11 @@
             # Release
             goreleaser
 
+            # Icons / packaging (make icons, goreleaser nfpms/app bundle)
+            imagemagick
+            libicns
+            zip
+
             # Utilities
             git
             git-absorb
