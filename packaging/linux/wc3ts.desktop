@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=wc3ts
+GenericName=WC3 LAN Proxy
+Comment=Warcraft III LAN game proxy over Tailscale
+Exec=wc3ts
+Icon=wc3ts
+Terminal=true
+Categories=Game;
+Keywords=warcraft;wc3;lan;tailscale;proxy;
+StartupWMClass=wc3ts
