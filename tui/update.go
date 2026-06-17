@@ -131,15 +131,11 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "[", "-":
 		// Decrease version
-		m = m.cycleVersion(-1)
-
-		return m, nil
+		return m.cycleVersion(-1)
 
 	case "]", "+", "=":
 		// Increase version
-		m = m.cycleVersion(1)
-
-		return m, nil
+		return m.cycleVersion(1)
 
 	case "s":
 		// Sort peers by games
@@ -149,22 +145,15 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "r":
 		// Manual refresh
-		if m.refreshCb != nil {
-			m.refreshCb()
-		}
-
-		return m, nil
+		return m, m.refreshCmd()
 	}
 
 	// Handle enter key separately using KeyType for reliability
 	if msg.Type == tea.KeyEnter {
 		// Show detail view based on focus, and trigger refresh
 		m = m.showDetailView()
-		if m.refreshCb != nil {
-			m.refreshCb()
-		}
 
-		return m, nil
+		return m, m.refreshCmd()
 	}
 
 	return m, nil
@@ -207,8 +196,30 @@ func (m Model) navigateDown() Model {
 	return m
 }
 
+// callbackCmd wraps a side-effecting callback as a tea.Cmd so it runs on a
+// command goroutine instead of inline in Update. Callbacks here trigger
+// network probes and logging; the slog handler calls program.Send, which
+// deadlocks if invoked on the event-loop goroutine that Update runs on.
+// Returning the work as a Cmd lets the event loop keep draining messages.
+func callbackCmd(cb func()) tea.Cmd {
+	if cb == nil {
+		return nil
+	}
+
+	return func() tea.Msg {
+		cb()
+
+		return nil
+	}
+}
+
+// refreshCmd dispatches the manual-refresh callback off the event loop.
+func (m Model) refreshCmd() tea.Cmd {
+	return callbackCmd(m.refreshCb)
+}
+
 // cycleVersion changes the game version by delta.
-func (m Model) cycleVersion(delta int) Model {
+func (m Model) cycleVersion(delta int) (Model, tea.Cmd) {
 	versions := config.SupportedVersions()
 	currentIdx := -1
 
@@ -234,12 +245,14 @@ func (m Model) cycleVersion(delta int) Model {
 
 	m.version.Version = versions[currentIdx]
 
-	// Notify callback if set
-	if m.versionCb != nil {
-		m.versionCb(m.version.Version)
+	if m.versionCb == nil {
+		return m, nil
 	}
 
-	return m
+	// Notify callback off the event loop (it logs via the TUI slog handler).
+	v := m.version.Version
+
+	return m, callbackCmd(func() { m.versionCb(v) })
 }
 
 // sortPeersByGames sorts peers by number of games (descending).
