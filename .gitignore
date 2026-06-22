@@ -22,3 +22,6 @@ temp_*/
 dist/
 /result
 /result-*
+
+# direnv
+.envrc.local
