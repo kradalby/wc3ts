@@ -4,6 +4,7 @@
     flake-utils.url = "github:numtide/flake-utils";
     flake-checks.url = "github:kradalby/flake-checks";
     flake-checks.inputs.nixpkgs.follows = "nixpkgs";
+    flake-checks.inputs.flake-utils.follows = "flake-utils";
   };
 
   outputs =
@@ -43,6 +44,7 @@
           buildInputs = with pkgs; [
             # Go
             go_1_26
+            gopls
 
             # Linting and Formatting
             golangci-lint
@@ -50,6 +52,9 @@
             gotools # provides goimports
             golines
             nixpkgs-fmt
+
+            # Build
+            gnumake
 
             # Pre-commit
             prek
