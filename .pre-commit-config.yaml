@@ -2,12 +2,17 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
-      - id: check-json
-      - id: check-yaml
-      - id: check-merge-conflict
-      - id: check-executables-have-shebangs
-      - id: end-of-file-fixer
       - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=1000"]
+      - id: detect-private-key
+      - id: mixed-line-ending
+      - id: check-executables-have-shebangs
 
   - repo: local
     hooks:
@@ -19,7 +24,21 @@ repos:
 
       - id: golangci-lint
         name: golangci-lint
-        entry: golangci-lint run --fix
+        entry: golangci-lint run --new-from-rev=HEAD~1 --fix
         language: system
         types: [go]
         pass_filenames: false
+
+      - id: go-test
+        name: go test
+        entry: go test -short -timeout=5m ./...
+        language: system
+        types: [go]
+        pass_filenames: false
+
+      - id: nix-checks
+        name: nix-checks
+        entry: bash -c 'nix build --fallback .#checks.x86_64-linux.build .#checks.x86_64-linux.golangci-lint .#checks.x86_64-linux.formatting'
+        language: system
+        pass_filenames: false
+        files: ^(flake\.(nix|lock)|go\.(mod|sum))$
