@@ -9,11 +9,12 @@ import (
 	"net"
 	"time"
 
-	"github.com/kradalby/wc3ts/config"
 	"github.com/nielsAD/gowarcraft3/network"
 	"github.com/nielsAD/gowarcraft3/protocol"
 	"github.com/nielsAD/gowarcraft3/protocol/w3gs"
 	"github.com/peterbourgon/ff/v3/ffcli"
+
+	"github.com/kradalby/wc3ts/config"
 )
 
 // Silence unused import warning - network is used for W3GSPacketConn.

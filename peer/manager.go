@@ -9,11 +9,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nielsAD/gowarcraft3/network"
+	"github.com/nielsAD/gowarcraft3/protocol/w3gs"
+
 	"github.com/kradalby/wc3ts/game"
 	"github.com/kradalby/wc3ts/lan"
 	"github.com/kradalby/wc3ts/tailscale"
-	"github.com/nielsAD/gowarcraft3/network"
-	"github.com/nielsAD/gowarcraft3/protocol/w3gs"
 )
 
 // DefaultProbeInterval is how often to probe peers for games.

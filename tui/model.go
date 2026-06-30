@@ -5,10 +5,11 @@ import (
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/nielsAD/gowarcraft3/protocol/w3gs"
+
 	"github.com/kradalby/wc3ts/game"
 	"github.com/kradalby/wc3ts/tailscale"
 	"github.com/kradalby/wc3ts/version"
-	"github.com/nielsAD/gowarcraft3/protocol/w3gs"
 )
 
 // Table column widths and layout constants.

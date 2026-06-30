@@ -12,8 +12,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kradalby/wc3ts/game"
 	"github.com/nielsAD/gowarcraft3/protocol/w3gs"
+
+	"github.com/kradalby/wc3ts/game"
 )
 
 // Number of goroutines for bidirectional relay.

@@ -9,6 +9,8 @@ import (
 	"syscall"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/peterbourgon/ff/v3/ffcli"
+
 	"github.com/kradalby/wc3ts/config"
 	"github.com/kradalby/wc3ts/game"
 	"github.com/kradalby/wc3ts/lan"
@@ -17,7 +19,6 @@ import (
 	"github.com/kradalby/wc3ts/tailscale"
 	"github.com/kradalby/wc3ts/tui"
 	"github.com/kradalby/wc3ts/version"
-	"github.com/peterbourgon/ff/v3/ffcli"
 )
 
 // app holds the application state and dependencies.

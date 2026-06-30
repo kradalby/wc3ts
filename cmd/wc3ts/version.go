@@ -5,8 +5,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/kradalby/wc3ts/version"
 	"github.com/peterbourgon/ff/v3/ffcli"
+
+	"github.com/kradalby/wc3ts/version"
 )
 
 func newVersionCommand() *ffcli.Command {
