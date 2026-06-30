@@ -4,14 +4,12 @@ package tailscale
 import (
 	"context"
 	"net/netip"
-	"slices"
 	"strings"
 	"sync"
 
 	"tailscale.com/client/local"
 	"tailscale.com/ipn"
-	"tailscale.com/tailcfg"
-	"tailscale.com/types/netmap"
+	"tailscale.com/ipn/ipnstate"
 )
 
 // mullvadExitNodeTag is the tag used by Mullvad exit nodes.
@@ -57,8 +55,10 @@ func NewDiscovery(onChange OnPeersChangedFunc) *Discovery {
 // Run starts watching for peer changes.
 // It blocks until the context is cancelled or an error occurs.
 func (d *Discovery) Run(ctx context.Context) error {
-	// Subscribe with initial netmap and rate limiting
-	mask := ipn.NotifyInitialNetMap | ipn.NotifyRateLimit
+	// Subscribe to peer-set deltas, rate-limited. The bus is only used as a
+	// change trigger; peer data is pulled from Status, since Notify.NetMap is
+	// deprecated and not delivered after the initial notify on Linux.
+	mask := ipn.NotifyPeerChanges | ipn.NotifyRateLimit
 
 	watcher, err := d.client.WatchIPNBus(ctx, mask)
 	if err != nil {
@@ -73,15 +73,23 @@ func (d *Discovery) Run(ctx context.Context) error {
 		_ = watcher.Close()
 	}()
 
+	// Populate initial state before waiting on the bus.
+	err = d.refresh(ctx)
+	if err != nil {
+		return err
+	}
+
 	for {
 		notify, err := watcher.Next()
 		if err != nil {
 			return err
 		}
 
-		// NetMap contains peer information when it changes
-		if notify.NetMap != nil {
-			d.updateFromNetMap(notify.NetMap)
+		if len(notify.PeersChanged) > 0 || len(notify.PeersRemoved) > 0 || notify.SelfChange != nil {
+			err = d.refresh(ctx)
+			if err != nil {
+				return err
+			}
 		}
 	}
 }
@@ -139,10 +147,20 @@ func (d *Discovery) Close() error {
 	return nil
 }
 
-// updateFromNetMap extracts peer information from a network map.
-func (d *Discovery) updateFromNetMap(nm *netmap.NetworkMap) {
-	d.extractSelfIP(nm)
-	peers := d.extractPeers(nm)
+// refresh pulls the current status and rebuilds the peer list.
+func (d *Discovery) refresh(ctx context.Context) error {
+	status, err := d.client.Status(ctx)
+	if err != nil {
+		return err
+	}
+
+	if ip, ok := firstIPv4(status.Self); ok {
+		d.mu.Lock()
+		d.selfIP = ip
+		d.mu.Unlock()
+	}
+
+	peers := extractPeers(status)
 
 	d.mu.Lock()
 	d.peers = peers
@@ -151,35 +169,16 @@ func (d *Discovery) updateFromNetMap(nm *netmap.NetworkMap) {
 	if d.onChange != nil {
 		d.onChange(peers)
 	}
+
+	return nil
 }
 
-// extractSelfIP extracts our own IP from the SelfNode in the network map.
-func (d *Discovery) extractSelfIP(nm *netmap.NetworkMap) {
-	if !nm.SelfNode.Valid() {
-		return
-	}
-
-	addrs := nm.SelfNode.Addresses()
-
-	for i := range addrs.Len() {
-		addr := addrs.At(i).Addr()
-		if addr.Is4() {
-			d.mu.Lock()
-			d.selfIP = addr
-			d.mu.Unlock()
-
-			return
-		}
-	}
-}
-
-// extractPeers extracts peer information from the network map.
-func (d *Discovery) extractPeers(nm *netmap.NetworkMap) []Peer {
+// extractPeers extracts online, non-exit, non-mobile peers from the status.
+func extractPeers(status *ipnstate.Status) []Peer {
 	var peers []Peer
 
-	for _, p := range nm.Peers {
-		peer, ok := d.extractPeer(p)
-		if ok {
+	for _, ps := range status.Peer {
+		if peer, ok := extractPeer(ps); ok {
 			peers = append(peers, peer)
 		}
 	}
@@ -187,50 +186,62 @@ func (d *Discovery) extractPeers(nm *netmap.NetworkMap) []Peer {
 	return peers
 }
 
-// extractPeer extracts a single peer's information if valid.
-func (d *Discovery) extractPeer(p tailcfg.NodeView) (Peer, bool) {
-	if !p.Valid() {
+// extractPeer extracts a single peer's information if it's a usable WC3 host.
+func extractPeer(ps *ipnstate.PeerStatus) (Peer, bool) {
+	if ps == nil || !ps.Online {
 		return Peer{}, false
 	}
 
-	// Check if peer is online
-	online := p.Online().GetOr(false)
-	if !online {
-		return Peer{}, false
-	}
-
-	// Filter out Mullvad exit nodes
-	tags := p.Tags()
-	if slices.Contains(tags.AsSlice(), mullvadExitNodeTag) {
-		return Peer{}, false
-	}
-
-	// Extract OS from hostinfo
-	os := ""
-	if hi := p.Hostinfo(); hi.Valid() {
-		os = hi.OS()
-	}
-
-	// Filter out mobile devices (iOS, Android) - they cannot run WC3
-	osLower := strings.ToLower(os)
-	if osLower == "ios" || osLower == "android" {
-		return Peer{}, false
-	}
-
-	// Find first IPv4 address
-	addrs := p.Addresses()
-
-	for i := range addrs.Len() {
-		addr := addrs.At(i).Addr()
-		if addr.Is4() {
-			return Peer{
-				Name:   p.ComputedName(),
-				IP:     addr,
-				Online: online,
-				OS:     os,
-			}, true
+	// Filter out Mullvad exit nodes.
+	if ps.Tags != nil {
+		for i := range ps.Tags.Len() {
+			if ps.Tags.At(i) == mullvadExitNodeTag {
+				return Peer{}, false
+			}
 		}
 	}
 
-	return Peer{}, false
+	// Filter out mobile devices (iOS, Android) - they cannot run WC3.
+	switch strings.ToLower(ps.OS) {
+	case "ios", "android":
+		return Peer{}, false
+	}
+
+	ip, ok := firstIPv4(ps)
+	if !ok {
+		return Peer{}, false
+	}
+
+	return Peer{
+		Name:   peerName(ps),
+		IP:     ip,
+		Online: ps.Online,
+		OS:     ps.OS,
+	}, true
+}
+
+// peerName returns a short display name: the first DNS label, else the hostname.
+func peerName(ps *ipnstate.PeerStatus) string {
+	if ps.DNSName != "" {
+		if name, _, _ := strings.Cut(ps.DNSName, "."); name != "" {
+			return name
+		}
+	}
+
+	return ps.HostName
+}
+
+// firstIPv4 returns the peer's first IPv4 Tailscale address.
+func firstIPv4(ps *ipnstate.PeerStatus) (netip.Addr, bool) {
+	if ps == nil {
+		return netip.Addr{}, false
+	}
+
+	for _, ip := range ps.TailscaleIPs {
+		if ip.Is4() {
+			return ip, true
+		}
+	}
+
+	return netip.Addr{}, false
 }
