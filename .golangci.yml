@@ -19,6 +19,9 @@ linters:
     # Deprecated, replaced by wsl_v5
     - wsl
 
+    # Deprecated, replaced by gomodguard_v2
+    - gomodguard
+
     # Not applicable
     - depguard         # Need to configure allowed packages
 
