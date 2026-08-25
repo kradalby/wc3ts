@@ -1,6 +1,6 @@
 module github.com/kradalby/wc3ts
 
-go 1.26.4
+go 1.27.0
 
 require (
 	github.com/charmbracelet/bubbles v1.0.0
