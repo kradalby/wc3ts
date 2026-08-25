@@ -40,7 +40,7 @@
           root = ./.;
           pname = "wc3ts";
           version = "0.0.1";
-          vendorHash = "sha256-qsLAs6DSpD2mBAx5ZepWZy/HrbUEqY3mcPZ28KmR+e4=";
+          vendorHash = "sha256-rS0Cb/TEzbpy3j1Fu3bY/XCtE2iJ4dlIl1Of4afOP/M=";
           goPkg = pkgs.go_latest;
         };
       in
