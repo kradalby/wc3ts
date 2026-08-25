@@ -95,10 +95,8 @@ func probeHosts(
 	w3gsConn.SetConn(conn, w3gs.NewFactoryCache(w3gs.DefaultFactory), w3gs.Encoding{})
 
 	searchGame := &w3gs.SearchGame{
-		GameVersion: w3gs.GameVersion{
-			Product: product,
-			Version: version,
-		},
+		Product:     product,
+		Version:     version,
 		HostCounter: 1,
 	}
 
