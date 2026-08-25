@@ -11,7 +11,7 @@ linters:
   disable:
     # Too strict for this project
     - wrapcheck        # Requires wrapping all errors
-    - exhaustruct      # Requires all struct fields
+    - exhaustruct_v5   # Requires all struct fields
     - ireturn          # Forbids returning interfaces
     - varnamelen       # Too strict on variable names
     - godox            # Forbids TODO/FIXME comments
@@ -21,6 +21,9 @@ linters:
 
     # Deprecated, replaced by gomodguard_v2
     - gomodguard
+
+    # Deprecated, replaced by exhaustruct_v5
+    - exhaustruct
 
     # Not applicable
     - depguard         # Need to configure allowed packages
@@ -62,7 +65,8 @@ formatters:
 
   settings:
     gofumpt:
-      extra-rules: true
+      extra:
+        group-params: true
 
 issues:
   exclude-use-default: false
