@@ -17,7 +17,23 @@
     flake-utils.lib.eachDefaultSystem (
       system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
+        # The Go formatters run against a `go 1.27.0` go.mod. Built with the
+        # default Go (1.26.x) they try to fetch the 1.27 toolchain over the
+        # network, which the Nix sandbox denies, so build them with go_latest.
+        pkgs = import nixpkgs {
+          inherit system;
+          overlays = [
+            (_final: prev: {
+              gofumpt = prev.gofumpt.override {
+                buildGoModule = prev.buildGoLatestModule;
+              };
+              gotools = prev.gotools.override {
+                buildGoModule = prev.buildGoLatestModule;
+                go = prev.go_latest;
+              };
+            })
+          ];
+        };
         fc = flake-checks.lib;
         common = {
           inherit pkgs;
@@ -25,7 +41,7 @@
           pname = "wc3ts";
           version = "0.0.1";
           vendorHash = "sha256-qsLAs6DSpD2mBAx5ZepWZy/HrbUEqY3mcPZ28KmR+e4=";
-          goPkg = pkgs.go_1_26;
+          goPkg = pkgs.go_latest;
         };
       in
       {
@@ -43,11 +59,11 @@
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             # Go
-            go_1_26
-            gopls
+            go_latest
+            gopls # already built with buildGoLatestModule upstream
 
             # Linting and Formatting
-            golangci-lint
+            golangci-lint # nixpkgs already builds this with Go 1.27
             gofumpt
             gotools # provides goimports
             golines
