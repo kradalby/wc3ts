@@ -17,7 +17,7 @@ const (
 	DefaultGameTimeout     = 10 * time.Second
 
 	// DefaultGameVersion is TFT 1.26 - common for classic WC3 LAN parties.
-	// Classic WC3 versions: 26 (1.26), 27 (1.27), 28 (1.28).
+	// Supported classic WC3 versions span 1.26-1.28; see SupportedVersions.
 	DefaultGameVersion = 26
 )
 
@@ -77,7 +77,8 @@ func FormatVersion(v uint32) string {
 	return fmt.Sprintf("1.%d", v)
 }
 
-// SupportedVersions returns the list of supported WC3 versions.
+// SupportedVersions returns versions validated for normal TUI use. The
+// -version flag accepts other classic versions for explicit experimentation.
 func SupportedVersions() []uint32 {
 	return []uint32{26, 27, 28}
 }

@@ -35,7 +35,7 @@ type app struct {
 
 func newRunCommand() *ffcli.Command {
 	fs := flag.NewFlagSet("run", flag.ExitOnError)
-	versionStr := fs.String("version", "26", "Game version (e.g., 26, 1.26, 27, 1.27, 28, 1.28)")
+	versionStr := fs.String("version", "26", "Game version (1.26-1.28 tested; other classic versions experimental)")
 
 	return &ffcli.Command{
 		Name:       "run",

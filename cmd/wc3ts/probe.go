@@ -31,7 +31,7 @@ var (
 func newProbeCommand() *ffcli.Command {
 	fs := flag.NewFlagSet("probe", flag.ExitOnError)
 	timeout := fs.Duration("timeout", 5*time.Second, "Response timeout")
-	versionStr := fs.String("version", "26", "Game version (e.g., 26, 1.26, 27, 1.27, 28, 1.28)")
+	versionStr := fs.String("version", "26", "Game version (1.26-1.28 tested; other classic versions experimental)")
 	product := fs.String("product", "W3XP", "Product code (W3XP for TFT, WAR3 for ROC)")
 
 	return &ffcli.Command{
@@ -47,7 +47,8 @@ Examples:
   wc3ts probe 100.64.0.1                 # Probe a Tailscale peer
   wc3ts probe 192.168.1.10 192.168.1.11  # Probe multiple hosts
   wc3ts probe -version 1.28 127.0.0.1    # Use WC3 1.28
-  wc3ts probe -version 27 127.0.0.1      # Use WC3 1.27`,
+  wc3ts probe -version 27 127.0.0.1      # Use WC3 1.27
+  wc3ts probe -version 1.20 127.0.0.1    # Experiment with classic WC3 1.20`,
 		FlagSet: fs,
 		Exec: func(ctx context.Context, args []string) error {
 			if len(args) == 0 {
