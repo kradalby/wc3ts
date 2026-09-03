@@ -86,6 +86,8 @@ nfpms:
 
 checksum:
   name_template: "checksums.txt"
+  extra_files:
+    - glob: dist/*.app.zip
 
 changelog:
   sort: asc
