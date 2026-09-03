@@ -1,4 +1,4 @@
-.PHONY: lint test build all icons icons-verify
+.PHONY: lint test build all icons icons-verify release-test
 
 lint:
 	golangci-lint run ./...
@@ -56,3 +56,7 @@ icons-verify:
 	test -f $(ICON_DIR)/wc3ts.icns
 	test -f cmd/wc3ts/resource_windows_amd64.syso
 	test -f cmd/wc3ts/resource_windows_arm64.syso
+
+release-test:
+	goreleaser release --snapshot --clean
+	packaging/check-release.sh

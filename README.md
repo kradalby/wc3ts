@@ -83,6 +83,12 @@ nix develop --command make icons
 
 This needs ImageMagick, libicns and Go, all provided by the dev shell.
 
+Validate every release archive, package, app bundle, and checksum with:
+
+```bash
+nix develop --command make release-test
+```
+
 ## Usage
 
 1. Start `wc3ts` on all machines in your Tailscale network
