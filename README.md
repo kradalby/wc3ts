@@ -2,7 +2,7 @@
 
 Automatically discover and join Warcraft III LAN games across your Tailscale network.
 
-Built for classic pre-Reforged Warcraft III (1.26-1.29) - the version we use at LAN parties.
+Built for classic pre-Reforged Warcraft III 1.26-1.28, the versions we use at LAN parties.
 
 ## Features
 
@@ -104,7 +104,10 @@ The proxy will automatically:
 ## Requirements
 
 - Tailscale installed and connected
-- Warcraft III 1.26 - 1.29 (defaults to 1.26)
+- Warcraft III 1.26-1.28 (defaults to 1.26)
+
+Other classic minor versions can be selected with `-version`, but are
+experimental until validated against packets from the corresponding client.
 
 ## How It Works
 
