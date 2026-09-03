@@ -1,0 +1,57 @@
+name: Edge release
+
+# Garnix evaluates and builds every flake check for pushes and pull requests.
+# GitHub Actions is reserved for publishing, where GITHUB_TOKEN is required.
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: edge-release
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: nix develop --command bash -e {0}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+
+      - name: Install Nix
+        uses: NixOS/nix-installer-action@6b8548fe06acfb0155a50ab5d561accb215764cc # main
+
+      - name: Setup Nix cache
+        uses: Mic92/hestia@f1f4df2801140a36398ed423533c8460618539df # v3.0.1
+        with:
+          version: v3.0.1
+
+      - name: Build snapshot release
+        run: goreleaser release --snapshot --clean
+
+      - name: Replace edge release
+        run: |
+          gh release delete edge --yes --cleanup-tag || true
+          mapfile -t artifacts < <(
+            find dist -maxdepth 1 -type f \
+              \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.deb' \
+                 -o -name '*.rpm' -o -name 'checksums.txt' \) \
+              -print | sort
+          )
+          gh release create edge \
+            --title "Edge (unstable)" \
+            --notes "Automated pre-release from main branch. **Not recommended for production use.**
+
+            Built from commit: ${{ github.sha }}" \
+            --prerelease \
+            "${artifacts[@]}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

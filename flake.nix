@@ -55,6 +55,13 @@
           gotest = fc.goTest common;
           golangci-lint = fc.goLint common;
           formatting = fc.goFormat common;
+          goreleaser = pkgs.runCommand "goreleaser-check" { nativeBuildInputs = [ pkgs.goreleaser ]; } ''
+            cp -r ${self} source
+            chmod -R u+w source
+            cd source
+            goreleaser check
+            touch $out
+          '';
         };
 
         devShells.default = pkgs.mkShell {
