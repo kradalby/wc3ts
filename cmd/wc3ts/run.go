@@ -76,7 +76,6 @@ func runExec(ctx context.Context, _ []string, gameVersion uint32) error {
 		newVersion := a.cfg.GameVersion
 		newVersion.Version = v
 		a.peerManager.SetVersion(newVersion)
-		slog.Info("version changed", "version", config.FormatVersion(v))
 	}
 
 	// Create refresh callback that triggers peer probing
