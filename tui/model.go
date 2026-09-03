@@ -69,6 +69,7 @@ type Model struct {
 	height       int
 	ready        bool
 	quitting     bool
+	refreshing   bool
 	focus        FocusedPanel
 	viewMode     ViewMode
 	selectedPeer *tailscale.Peer // selected peer for detail view
@@ -98,8 +99,8 @@ type PortMsg struct {
 }
 
 // NewModel creates a new TUI model.
-// The versionCb callback is called when the user changes the game version.
-// The refreshCb callback is called when the user requests a manual refresh.
+// versionCb must complete without blocking; it runs inline to preserve order.
+// refreshCb may block and runs as a command outside the event loop.
 func NewModel(
 	proxyPort int,
 	gameVersion w3gs.GameVersion,

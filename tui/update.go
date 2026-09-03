@@ -13,6 +13,8 @@ import (
 	"github.com/kradalby/wc3ts/game"
 )
 
+type refreshDoneMsg struct{}
+
 // Update handles messages and updates the model.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -80,6 +82,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.proxyPort = msg.Port
 
 		return m, nil
+
+	case refreshDoneMsg:
+		m.refreshing = false
+
+		return m, nil
 	}
 
 	return m, nil
@@ -131,11 +138,11 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "[", "-":
 		// Decrease version
-		return m.cycleVersion(-1)
+		return m.cycleVersion(-1), nil
 
 	case "]", "+", "=":
 		// Increase version
-		return m.cycleVersion(1)
+		return m.cycleVersion(1), nil
 
 	case "s":
 		// Sort peers by games
@@ -145,7 +152,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "r":
 		// Manual refresh
-		return m, m.refreshCmd()
+		return m.refresh()
 	}
 
 	// Handle enter key separately using KeyType for reliability
@@ -153,7 +160,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Show detail view based on focus, and trigger refresh
 		m = m.showDetailView()
 
-		return m, m.refreshCmd()
+		return m.refresh()
 	}
 
 	return m, nil
@@ -196,30 +203,23 @@ func (m Model) navigateDown() Model {
 	return m
 }
 
-// callbackCmd wraps a side-effecting callback as a tea.Cmd so it runs on a
-// command goroutine instead of inline in Update. Callbacks here trigger
-// network probes and logging; the slog handler calls program.Send, which
-// deadlocks if invoked on the event-loop goroutine that Update runs on.
-// Returning the work as a Cmd lets the event loop keep draining messages.
-func callbackCmd(cb func()) tea.Cmd {
-	if cb == nil {
-		return nil
+// refresh dispatches network work off the event loop and coalesces requests.
+func (m Model) refresh() (Model, tea.Cmd) {
+	if m.refreshCb == nil || m.refreshing {
+		return m, nil
 	}
 
-	return func() tea.Msg {
-		cb()
+	m.refreshing = true
 
-		return nil
+	return m, func() tea.Msg {
+		m.refreshCb()
+
+		return refreshDoneMsg{}
 	}
-}
-
-// refreshCmd dispatches the manual-refresh callback off the event loop.
-func (m Model) refreshCmd() tea.Cmd {
-	return callbackCmd(m.refreshCb)
 }
 
 // cycleVersion changes the game version by delta.
-func (m Model) cycleVersion(delta int) (Model, tea.Cmd) {
+func (m Model) cycleVersion(delta int) Model {
 	versions := config.SupportedVersions()
 	currentIdx := -1
 
@@ -245,14 +245,13 @@ func (m Model) cycleVersion(delta int) (Model, tea.Cmd) {
 
 	m.version.Version = versions[currentIdx]
 
-	if m.versionCb == nil {
-		return m, nil
+	if m.versionCb != nil {
+		// This callback only updates lock-protected state. Keeping it inline
+		// preserves keypress order; blocking work belongs in a tea.Cmd.
+		m.versionCb(m.version.Version)
 	}
 
-	// Notify callback off the event loop (it logs via the TUI slog handler).
-	v := m.version.Version
-
-	return m, callbackCmd(func() { m.versionCb(v) })
+	return m
 }
 
 // sortPeersByGames sorts peers by number of games (descending).
