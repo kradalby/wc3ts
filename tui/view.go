@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 
 	"github.com/kradalby/wc3ts/game"
 )
@@ -59,8 +59,8 @@ func newStyles() styles {
 	}
 }
 
-// View renders the TUI.
-func (m Model) View() string {
+// render renders the TUI content.
+func (m Model) render() string {
 	if m.quitting {
 		return "Goodbye!\n"
 	}

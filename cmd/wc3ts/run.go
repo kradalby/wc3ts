@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/peterbourgon/ff/v3/ffcli"
 
 	"github.com/kradalby/wc3ts/config"
@@ -85,7 +85,7 @@ func runExec(ctx context.Context, _ []string, gameVersion uint32) error {
 	}
 
 	model := tui.NewModel(0, a.cfg.GameVersion, version.Get(), versionCallback, refreshCallback)
-	a.program = tea.NewProgram(model, tea.WithAltScreen())
+	a.program = tea.NewProgram(model)
 
 	// Set up logging to TUI (Debug level to see everything)
 	handler := tui.NewHandler(a.program, slog.LevelDebug)

@@ -3,15 +3,15 @@ package tui_test
 import (
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/nielsAD/gowarcraft3/protocol/w3gs"
 
 	"github.com/kradalby/wc3ts/tui"
 	"github.com/kradalby/wc3ts/version"
 )
 
-func key(r rune) tea.KeyMsg {
-	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}}
+func key(r rune) tea.KeyPressMsg {
+	return tea.KeyPressMsg{Code: r, Text: string(r)}
 }
 
 func modelFrom(t *testing.T, model tea.Model) tui.Model {
@@ -58,7 +58,7 @@ func TestDetailRefreshDeferredToCmd(t *testing.T) {
 	called := false
 	m := tui.NewModel(0, w3gs.GameVersion{}, version.Info{}, nil, func() { called = true })
 
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	if called {
 		t.Fatal("detail refresh callback ran inline in Update")

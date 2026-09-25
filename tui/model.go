@@ -2,9 +2,9 @@
 package tui
 
 import (
-	"github.com/charmbracelet/bubbles/table"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/table"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/nielsAD/gowarcraft3/protocol/w3gs"
 
 	"github.com/kradalby/wc3ts/game"
@@ -172,4 +172,12 @@ func NewModel(
 // Init initializes the model.
 func (m Model) Init() tea.Cmd {
 	return nil
+}
+
+// View renders the TUI in the alternate screen.
+func (m Model) View() tea.View {
+	v := tea.NewView(m.render())
+	v.AltScreen = true
+
+	return v
 }

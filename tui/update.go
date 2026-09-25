@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/table"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/table"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/kradalby/wc3ts/config"
 	"github.com/kradalby/wc3ts/game"
@@ -18,7 +18,7 @@ type refreshDoneMsg struct{}
 // Update handles messages and updates the model.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 
 	case tea.WindowSizeMsg:
@@ -93,9 +93,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // handleKey handles keyboard input.
-func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// Handle escape first to return from detail view
-	if msg.Type == tea.KeyEsc {
+	if msg.Code == tea.KeyEscape {
 		if m.viewMode != ViewModeList {
 			m.viewMode = ViewModeList
 			m.selectedPeer = nil
@@ -155,8 +155,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.refresh()
 	}
 
-	// Handle enter key separately using KeyType for reliability
-	if msg.Type == tea.KeyEnter {
+	// Match enter by key code so modifiers do not hide it.
+	if msg.Code == tea.KeyEnter {
 		// Show detail view based on focus, and trigger refresh
 		m = m.showDetailView()
 
