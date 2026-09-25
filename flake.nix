@@ -41,7 +41,7 @@
           root = ./.;
           pname = "wc3ts";
           version = "0.0.1";
-          vendorHash = "sha256-rS0Cb/TEzbpy3j1Fu3bY/XCtE2iJ4dlIl1Of4afOP/M=";
+          vendorHash = "sha256-F8RDp25i/3kFlQ8RpwBbepFFp8PPYTIUzCeVB6Xvzc0=";
           goPkg = pkgs.go_latest;
         };
       in
