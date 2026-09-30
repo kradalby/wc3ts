@@ -92,3 +92,17 @@ func TestRegistryGamesSortedByKey(t *testing.T) {
 		t.Fatalf("Games() not sorted by Key: %v", keys)
 	}
 }
+
+func TestRegistryAddKeepsFirstSeen(t *testing.T) {
+	t.Parallel()
+
+	r := game.NewRegistry(nil)
+	r.Add(remote("a", 1))
+	first := r.Games()[0].FirstSeen
+
+	r.Add(remote("a", 1))
+
+	if got := r.Games()[0].FirstSeen; got.IsZero() || !got.Equal(first) {
+		t.Fatalf("FirstSeen after refresh = %v, want %v", got, first)
+	}
+}

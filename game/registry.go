@@ -59,17 +59,10 @@ func (r *Registry) Run(ctx context.Context) error {
 // Returns true if the game was newly added.
 func (r *Registry) Add(game Game) bool {
 	key := game.Key()
-	now := time.Now()
 
 	r.mu.Lock()
-	_, exists := r.games[key]
-
-	if !exists {
-		game.FirstSeen = now
-	}
-
-	game.LastSeen = now
-	r.games[key] = game
+	old, exists := r.games[key]
+	r.games[key] = upsert(old, game, time.Now())
 	total := r.publish()
 	r.mu.Unlock()
 
@@ -88,6 +81,20 @@ func (r *Registry) Add(game Game) bool {
 	r.notify()
 
 	return !exists
+}
+
+// upsert merges a fresh observation into the stored game. Observations come
+// straight off the wire and carry no history, so FirstSeen comes from old;
+// a zero old means a first sighting.
+func upsert(old, obs Game, now time.Time) Game {
+	obs.FirstSeen = old.FirstSeen
+	if obs.FirstSeen.IsZero() {
+		obs.FirstSeen = now
+	}
+
+	obs.LastSeen = now
+
+	return obs
 }
 
 // Games returns all games sorted by Key. The slice is shared and must not
