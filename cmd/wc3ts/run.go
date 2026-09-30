@@ -88,8 +88,7 @@ func runExec(ctx context.Context, _ []string, gameVersion uint32) error {
 	a.program = tea.NewProgram(model)
 
 	// Set up logging to TUI (Debug level to see everything)
-	handler := tui.NewHandler(a.program, slog.LevelDebug)
-	slog.SetDefault(slog.New(handler))
+	slog.SetDefault(slog.New(tui.NewHandler(a.program.Send, slog.LevelDebug)))
 
 	a.startServices(ctx)
 
@@ -100,9 +99,6 @@ func runExec(ctx context.Context, _ []string, gameVersion uint32) error {
 		_, err := a.program.Run()
 		tuiDone <- err
 	}()
-
-	// Mark handler ready once program is running
-	handler.SetReady()
 
 	// Update TUI model with actual proxy port
 	a.program.Send(tui.PortMsg{Port: a.tcpProxy.Port()})
