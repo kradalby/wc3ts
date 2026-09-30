@@ -1,8 +1,9 @@
 package tui
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -11,6 +12,7 @@ import (
 
 	"github.com/kradalby/wc3ts/config"
 	"github.com/kradalby/wc3ts/game"
+	"github.com/kradalby/wc3ts/tailscale"
 )
 
 type refreshDoneMsg struct{}
@@ -55,8 +57,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case PeersMsg:
-		m.peers = msg.Peers
-		m.sortPeersByOS()
+		// msg.Peers is shared with the peer manager; sort a copy.
+		m.peers = slices.SortedFunc(slices.Values(msg.Peers), byOS)
 		m.peerTable.SetRows(m.peerRows())
 
 		return m, nil
@@ -254,17 +256,13 @@ func (m Model) cycleVersion(delta int) Model {
 	return m
 }
 
-// sortPeersByGames sorts peers by number of games (descending).
+// sortPeersByGames sorts peers by number of games (descending), then name.
 func (m Model) sortPeersByGames() Model {
-	sort.Slice(m.peers, func(i, j int) bool {
-		iGames := m.peerGames[m.peers[i].IP.String()]
-		jGames := m.peerGames[m.peers[j].IP.String()]
-		// Sort by games descending, then by name ascending
-		if iGames != jGames {
-			return iGames > jGames
-		}
-
-		return m.peers[i].Name < m.peers[j].Name
+	m.peers = slices.SortedFunc(slices.Values(m.peers), func(a, b tailscale.Peer) int {
+		return cmp.Or(
+			cmp.Compare(m.peerGames[b.IP.String()], m.peerGames[a.IP.String()]),
+			cmp.Compare(a.Name, b.Name),
+		)
 	})
 	m.peerTable.SetRows(m.peerRows())
 
@@ -314,18 +312,12 @@ func osPriority(os string) int {
 	}
 }
 
-// sortPeersByOS sorts peers by OS priority (Windows first, then macOS, then others).
-func (m Model) sortPeersByOS() {
-	sort.Slice(m.peers, func(i, j int) bool {
-		iPriority := osPriority(m.peers[i].OS)
-		jPriority := osPriority(m.peers[j].OS)
-
-		if iPriority != jPriority {
-			return iPriority < jPriority
-		}
-
-		return m.peers[i].Name < m.peers[j].Name
-	})
+// byOS orders peers by OS priority (Windows first, then macOS, then others), then name.
+func byOS(a, b tailscale.Peer) int {
+	return cmp.Or(
+		cmp.Compare(osPriority(a.OS), osPriority(b.OS)),
+		cmp.Compare(a.Name, b.Name),
+	)
 }
 
 // updatePeerGameCounts updates the map of peer IP to game count.
