@@ -1,6 +1,7 @@
 package game_test
 
 import (
+	"bytes"
 	"fmt"
 	"net/netip"
 	"slices"
@@ -90,6 +91,32 @@ func TestRegistryGamesSortedByKey(t *testing.T) {
 
 	if !slices.IsSorted(keys) {
 		t.Fatalf("Games() not sorted by Key: %v", keys)
+	}
+}
+
+// Callers share no memory with the registry, so one editing what it passed in
+// or got back cannot change what the TUI, proxy and broadcaster read.
+func TestRegistryDoesNotShareMemory(t *testing.T) {
+	t.Parallel()
+
+	r := game.NewRegistry(nil)
+
+	in := remote("r", 1)
+	in.RawData = []byte{1}
+	r.Add(in)
+	in.RawData[0] = 9
+
+	r.Add(game.Game{Info: w3gs.GameInfo{GameName: "l"}, RawData: []byte{1}, Source: game.SourceLocal})
+
+	for _, g := range [][]game.Game{r.Games(), r.LocalGames(), {*r.FindByHostCounter(1)}} {
+		g[0].Info.GameName = "x"
+		g[0].RawData[0] = 9
+	}
+
+	for _, g := range r.Games() {
+		if g.Info.GameName == "x" || !bytes.Equal(g.RawData, []byte{1}) {
+			t.Fatalf("registry game changed by caller: %+v", g)
+		}
 	}
 }
 

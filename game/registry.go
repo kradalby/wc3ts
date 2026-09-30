@@ -1,6 +1,7 @@
 package game
 
 import (
+	"bytes"
 	"context"
 	"log/slog"
 	"maps"
@@ -11,15 +12,15 @@ import (
 	"time"
 )
 
-// OnChangeFunc is called when the game list changes. games is shared and
-// must not be modified.
+// OnChangeFunc is called when the game list changes.
 type OnChangeFunc func(games []Game)
 
 // Registry maintains a thread-safe collection of discovered games.
 //
-// Writers publish an immutable snapshot, sorted by Key, that readers load
-// without locking. onChange runs on Run's goroutine, never under the lock,
-// so a slow subscriber cannot hold up writers or readers.
+// Writers publish a snapshot, sorted by Key, that readers load without
+// locking. Games are copied in and out, so no caller can change what others
+// read. onChange runs on Run's goroutine, never under the lock, so a slow
+// subscriber cannot hold up writers or readers.
 type Registry struct {
 	mu       sync.Mutex // serializes writers
 	games    map[string]Game
@@ -64,6 +65,7 @@ func (r *Registry) Run(ctx context.Context, ttl time.Duration) error {
 // Returns true if the game was newly added.
 func (r *Registry) Add(game Game) bool {
 	key := game.Key()
+	game = clone(game)
 
 	r.mu.Lock()
 	old, exists := r.games[key]
@@ -102,19 +104,23 @@ func upsert(old, obs Game, now time.Time) Game {
 	return obs
 }
 
-// Games returns all games sorted by Key. The slice is shared and must not
-// be modified.
+// Games returns a copy of all games, sorted by Key.
 func (r *Registry) Games() []Game {
-	return *r.snapshot.Load()
+	games := slices.Clone(*r.snapshot.Load())
+	for i := range games {
+		games[i] = clone(games[i])
+	}
+
+	return games
 }
 
-// LocalGames returns games hosted locally.
+// LocalGames returns a copy of the games hosted locally.
 func (r *Registry) LocalGames() []Game {
 	var local []Game
 
-	for _, g := range r.Games() {
+	for _, g := range *r.snapshot.Load() {
 		if g.Source == SourceLocal {
-			local = append(local, g)
+			local = append(local, clone(g))
 		}
 	}
 
@@ -124,8 +130,10 @@ func (r *Registry) LocalGames() []Game {
 // FindByHostCounter finds a remote game by its HostCounter.
 // Returns nil if not found.
 func (r *Registry) FindByHostCounter(hostCounter uint32) *Game {
-	for _, g := range r.Games() {
+	for _, g := range *r.snapshot.Load() {
 		if g.Source == SourceRemote && g.Info.HostCounter == hostCounter {
+			g = clone(g)
+
 			return &g
 		}
 	}
@@ -171,6 +179,13 @@ func (r *Registry) expireLoop(ctx context.Context, ttl time.Duration) {
 			r.Expire(now.Add(-ttl))
 		}
 	}
+}
+
+// clone returns g with its own RawData, the only memory a Game copy shares.
+func clone(g Game) Game {
+	g.RawData = bytes.Clone(g.RawData)
+
+	return g
 }
 
 // publish stores a fresh snapshot of r.games and returns its length.
