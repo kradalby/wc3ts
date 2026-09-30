@@ -30,7 +30,8 @@ type Peer struct {
 	OS string
 }
 
-// OnPeersChangedFunc is called when the peer list changes.
+// OnPeersChangedFunc is called when the peer list changes. peers is shared
+// between subscribers and must not be modified.
 type OnPeersChangedFunc func(peers []Peer)
 
 // Discovery watches for Tailscale peer changes via the IPN bus.

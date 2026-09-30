@@ -1,11 +1,14 @@
 package tui_test
 
 import (
+	"net/netip"
+	"slices"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/nielsAD/gowarcraft3/protocol/w3gs"
 
+	"github.com/kradalby/wc3ts/tailscale"
 	"github.com/kradalby/wc3ts/tui"
 	"github.com/kradalby/wc3ts/version"
 )
@@ -128,5 +131,25 @@ func TestVersionChangesPreserveOrder(t *testing.T) {
 	want := []uint32{27, 28}
 	if len(versions) != len(want) || versions[0] != want[0] || versions[1] != want[1] {
 		t.Fatalf("version callbacks = %v, want %v", versions, want)
+	}
+}
+
+// PeersMsg shares its slice with the peer manager, so the TUI must sort a copy.
+func TestPeersMsgLeavesInputUntouched(t *testing.T) {
+	t.Parallel()
+
+	peers := []tailscale.Peer{
+		{Name: "c", OS: "linux", IP: netip.MustParseAddr("100.64.0.3")},
+		{Name: "b", OS: "macOS", IP: netip.MustParseAddr("100.64.0.2")},
+		{Name: "a", OS: "windows", IP: netip.MustParseAddr("100.64.0.1")},
+	}
+	want := slices.Clone(peers)
+
+	m := tui.NewModel(0, w3gs.GameVersion{}, version.Info{}, nil, nil)
+	model, _ := m.Update(tui.PeersMsg{Peers: peers})
+	modelFrom(t, model).Update(key('s'))
+
+	if !slices.Equal(peers, want) {
+		t.Fatalf("PeersMsg input mutated: got %v, want %v", peers, want)
 	}
 }

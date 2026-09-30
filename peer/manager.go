@@ -94,6 +94,7 @@ func (m *Manager) Refresh() {
 }
 
 // OnPeersChanged handles peer list updates from Tailscale discovery.
+// peers is shared with other subscribers and must not be modified.
 func (m *Manager) OnPeersChanged(peers []tailscale.Peer) {
 	m.mu.Lock()
 	m.peers = peers
@@ -136,8 +137,7 @@ func (m *Manager) receiveLoop() {
 // probeAllPeers sends SearchGame to all known peers and localhost.
 func (m *Manager) probeAllPeers() {
 	m.mu.RLock()
-	peers := make([]tailscale.Peer, len(m.peers))
-	copy(peers, m.peers)
+	peers := m.peers
 	version := m.version
 	m.mu.RUnlock()
 
