@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/netip"
 	"strings"
+	"time"
 
 	"tailscale.com/client/local"
 	"tailscale.com/ipn"
@@ -13,6 +14,17 @@ import (
 
 // mullvadExitNodeTag is the tag used by Mullvad exit nodes.
 const mullvadExitNodeTag = "tag:mullvad-exit-node"
+
+// watchMask subscribes to peer-set deltas. It must not include
+// ipn.NotifyRateLimit: tailscaled rejects NotifyRateLimit combined with
+// NotifyPeerChanges (see ipn.ValidateNotifyWatchOpt) with 400 Bad Request.
+// Rate limiting is done locally via refreshInterval instead.
+const watchMask = ipn.NotifyPeerChanges
+
+// refreshInterval is the minimum time between two Status refreshes. Without
+// NotifyPeerPatches, every per-peer field change (LastSeen, endpoints, ...)
+// arrives as a full PeersChanged entry, so bursts are coalesced here.
+const refreshInterval = 2 * time.Second
 
 // Peer represents a Tailscale peer.
 type Peer struct {
@@ -50,12 +62,10 @@ func NewDiscovery(onChange OnPeersChangedFunc) *Discovery {
 // Run starts watching for peer changes.
 // It blocks until the context is cancelled or an error occurs.
 func (d *Discovery) Run(ctx context.Context) error {
-	// Subscribe to peer-set deltas, rate-limited. The bus is only used as a
-	// change trigger; peer data is pulled from Status, since Notify.NetMap is
-	// deprecated and not delivered after the initial notify on Linux.
-	mask := ipn.NotifyPeerChanges | ipn.NotifyRateLimit
-
-	watcher, err := d.client.WatchIPNBus(ctx, mask)
+	// The bus is only used as a change trigger; peer data is pulled from
+	// Status, since Notify.NetMap is deprecated and not delivered after the
+	// initial notify on Linux.
+	watcher, err := d.client.WatchIPNBus(ctx, watchMask)
 	if err != nil {
 		return err
 	}
@@ -70,17 +80,49 @@ func (d *Discovery) Run(ctx context.Context) error {
 		return err
 	}
 
+	dirty := make(chan struct{}, 1)
+	errc := make(chan error, 1)
+
+	go func() {
+		for {
+			notify, err := watcher.Next()
+			if err != nil {
+				errc <- err
+
+				return
+			}
+
+			if len(notify.PeersChanged) > 0 || len(notify.PeersRemoved) > 0 || notify.SelfChange != nil {
+				select {
+				case dirty <- struct{}{}:
+				default: // refresh already pending
+				}
+			}
+		}
+	}()
+
 	for {
-		notify, err := watcher.Next()
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case err := <-errc:
+			return err
+		case <-dirty:
+		}
+
+		err = d.refresh(ctx)
 		if err != nil {
 			return err
 		}
 
-		if len(notify.PeersChanged) > 0 || len(notify.PeersRemoved) > 0 || notify.SelfChange != nil {
-			err = d.refresh(ctx)
-			if err != nil {
-				return err
-			}
+		// Coalesce bursts: at most one refresh per refreshInterval. A change
+		// arriving meanwhile leaves dirty set and is picked up afterwards.
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case err := <-errc:
+			return err
+		case <-time.After(refreshInterval):
 		}
 	}
 }
