@@ -146,7 +146,7 @@ func (a *app) initServices(ctx context.Context) error {
 	// Create LAN broadcaster (uses ephemeral port, doesn't conflict with WC3)
 	proxyPort := safeUint16(a.tcpProxy.Port())
 
-	a.broadcaster, err = lan.NewBroadcaster(proxyPort)
+	a.broadcaster, err = lan.NewBroadcaster(proxyPort, a.registry)
 	if err != nil {
 		return err
 	}
@@ -174,10 +174,6 @@ func (a *app) initServices(ctx context.Context) error {
 func (a *app) onGamesChanged(games []game.Game) {
 	if a.program != nil {
 		a.program.Send(tui.GamesMsg{Games: games})
-	}
-
-	if a.broadcaster != nil {
-		a.broadcaster.OnGamesChanged(games)
 	}
 }
 
