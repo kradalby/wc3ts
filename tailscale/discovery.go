@@ -84,30 +84,13 @@ func (d *Discovery) Run(ctx context.Context) error {
 	errc := make(chan error, 1)
 
 	go func() {
-		for {
-			notify, err := watcher.Next()
-			if err != nil {
-				errc <- err
-
-				return
-			}
-
-			if len(notify.PeersChanged) > 0 || len(notify.PeersRemoved) > 0 || notify.SelfChange != nil {
-				select {
-				case dirty <- struct{}{}:
-				default: // refresh already pending
-				}
-			}
-		}
+		errc <- watchPeerChanges(watcher, dirty)
 	}()
 
 	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case err := <-errc:
+		err = wait(ctx, errc, dirty)
+		if err != nil {
 			return err
-		case <-dirty:
 		}
 
 		err = d.refresh(ctx)
@@ -117,12 +100,9 @@ func (d *Discovery) Run(ctx context.Context) error {
 
 		// Coalesce bursts: at most one refresh per refreshInterval. A change
 		// arriving meanwhile leaves dirty set and is picked up afterwards.
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case err := <-errc:
+		err = wait(ctx, errc, time.After(refreshInterval))
+		if err != nil {
 			return err
-		case <-time.After(refreshInterval):
 		}
 	}
 }
@@ -142,6 +122,44 @@ func (d *Discovery) FetchSelfIP(ctx context.Context) (netip.Addr, error) {
 	}
 
 	return netip.Addr{}, nil
+}
+
+// watchPeerChanges reads the IPN bus until it fails and marks dirty whenever
+// the peer set or self node changes. dirty holds at most one pending signal.
+func watchPeerChanges(watcher *local.IPNBusWatcher, dirty chan<- struct{}) error {
+	for {
+		notify, err := watcher.Next()
+		if err != nil {
+			return err
+		}
+
+		if !peersChanged(notify) {
+			continue
+		}
+
+		select {
+		case dirty <- struct{}{}:
+		default: // refresh already pending
+		}
+	}
+}
+
+// peersChanged reports whether notify affects the peer list.
+func peersChanged(notify ipn.Notify) bool {
+	return len(notify.PeersChanged) > 0 || len(notify.PeersRemoved) > 0 || notify.SelfChange != nil
+}
+
+// wait blocks until ch delivers, returning nil, or until ctx is done or the
+// bus watcher fails, returning the corresponding error.
+func wait[T any](ctx context.Context, errc <-chan error, ch <-chan T) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-errc:
+		return err
+	case <-ch:
+		return nil
+	}
 }
 
 // refresh pulls the current status and rebuilds the peer list.
