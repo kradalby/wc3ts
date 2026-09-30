@@ -5,34 +5,41 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 )
 
+// logBuffer bounds log lines queued for the TUI; beyond it lines are dropped.
+const logBuffer = 256
+
 // Handler is a slog.Handler that sends logs to the TUI.
 type Handler struct {
-	program *tea.Program
-	level   slog.Level
-	attrs   []slog.Attr
-	groups  []string
-	ready   *atomic.Bool
+	lines  chan<- string
+	level  slog.Level
+	attrs  []slog.Attr
+	groups []string
 }
 
-// NewHandler creates a new TUI log handler.
-func NewHandler(program *tea.Program, level slog.Level) *Handler {
+// NewHandler creates a TUI log handler that passes each line to send as a
+// LogMsg, typically tea.Program.Send.
+//
+// send runs on a single goroutine fed by a bounded queue. Handle never waits
+// for it: logging happens under locks and on network paths, and a stalled
+// event loop must not stall those, so lines are dropped once the queue fills.
+func NewHandler(send func(tea.Msg), level slog.Level) *Handler {
+	lines := make(chan string, logBuffer)
+
+	go func() {
+		for line := range lines {
+			send(LogMsg{Message: line})
+		}
+	}()
+
 	return &Handler{
-		program: program,
-		level:   level,
-		ready:   &atomic.Bool{},
+		lines: lines,
+		level: level,
 	}
-}
-
-// SetReady marks the handler as ready to send messages.
-// Call this after program.Run() has started.
-func (h *Handler) SetReady() {
-	h.ready.Store(true)
 }
 
 // Enabled reports whether the handler handles records at the given level.
@@ -42,11 +49,6 @@ func (h *Handler) Enabled(_ context.Context, level slog.Level) bool {
 
 // Handle formats and sends the log record to the TUI.
 func (h *Handler) Handle(_ context.Context, r slog.Record) error {
-	// Don't send if program isn't ready yet
-	if !h.ready.Load() {
-		return nil
-	}
-
 	var b strings.Builder
 
 	// Format: HH:MM:SS LEVEL message key=value ...
@@ -74,7 +76,10 @@ func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 		fmt.Fprintf(&b, "%v", a.Value.Any())
 	}
 
-	h.program.Send(LogMsg{Message: b.String()})
+	select {
+	case h.lines <- b.String():
+	default:
+	}
 
 	return nil
 }
@@ -86,11 +91,10 @@ func (h *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	copy(newAttrs[len(h.attrs):], attrs)
 
 	return &Handler{
-		program: h.program,
-		level:   h.level,
-		attrs:   newAttrs,
-		groups:  h.groups,
-		ready:   h.ready,
+		lines:  h.lines,
+		level:  h.level,
+		attrs:  newAttrs,
+		groups: h.groups,
 	}
 }
 
@@ -101,10 +105,9 @@ func (h *Handler) WithGroup(name string) slog.Handler {
 	newGroups[len(h.groups)] = name
 
 	return &Handler{
-		program: h.program,
-		level:   h.level,
-		attrs:   h.attrs,
-		groups:  newGroups,
-		ready:   h.ready,
+		lines:  h.lines,
+		level:  h.level,
+		attrs:  h.attrs,
+		groups: newGroups,
 	}
 }
