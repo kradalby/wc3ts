@@ -1,40 +1,79 @@
 package game
 
 import (
+	"context"
 	"log/slog"
+	"maps"
+	"slices"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
-// OnChangeFunc is called when the game list changes.
+// OnChangeFunc is called when the game list changes. games is shared and
+// must not be modified.
 type OnChangeFunc func(games []Game)
 
 // Registry maintains a thread-safe collection of discovered games.
+//
+// Writers publish an immutable snapshot, sorted by Key, that readers load
+// without locking. onChange runs on Run's goroutine, never under the lock,
+// so a slow subscriber cannot hold up writers or readers.
 type Registry struct {
-	games    map[string]*Game
+	mu       sync.Mutex // serializes writers
+	games    map[string]Game
+	snapshot atomic.Pointer[[]Game]
+	changed  chan struct{}
 	onChange OnChangeFunc
-	mu       sync.RWMutex
 }
 
 // NewRegistry creates a new game registry.
 func NewRegistry(onChange OnChangeFunc) *Registry {
-	return &Registry{
-		games:    make(map[string]*Game),
+	r := &Registry{
+		games:    make(map[string]Game),
+		changed:  make(chan struct{}, 1),
 		onChange: onChange,
+	}
+	r.snapshot.Store(&[]Game{})
+
+	return r
+}
+
+// Run calls onChange with the latest snapshot after changes, until ctx is
+// done. Changes made while onChange runs coalesce into one call.
+func (r *Registry) Run(ctx context.Context) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-r.changed:
+			if r.onChange != nil {
+				r.onChange(r.Games())
+			}
+		}
 	}
 }
 
 // Add adds or updates a game in the registry.
 // Returns true if the game was newly added.
 func (r *Registry) Add(game Game) bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	key := game.Key()
+	now := time.Now()
+
+	r.mu.Lock()
 	_, exists := r.games[key]
 
 	if !exists {
-		game.FirstSeen = time.Now()
+		game.FirstSeen = now
+	}
+
+	game.LastSeen = now
+	r.games[key] = game
+	total := r.publish()
+	r.mu.Unlock()
+
+	if !exists {
 		slog.Debug(
 			"adding new game to registry",
 			"key", key,
@@ -42,91 +81,40 @@ func (r *Registry) Add(game Game) bool {
 			"hostCounter", game.Info.HostCounter,
 			"peerIP", game.PeerIP,
 			"source", game.Source,
-			"totalGames", len(r.games)+1,
+			"totalGames", total,
 		)
 	}
 
-	game.LastSeen = time.Now()
-	r.games[key] = &game
-
-	if r.onChange != nil {
-		r.onChange(r.snapshot())
-	}
+	r.notify()
 
 	return !exists
 }
 
-// Remove removes a game from the registry.
-// Returns true if the game existed.
-func (r *Registry) Remove(key string) bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	_, exists := r.games[key]
-	if !exists {
-		return false
-	}
-
-	delete(r.games, key)
-
-	if r.onChange != nil {
-		r.onChange(r.snapshot())
-	}
-
-	return true
-}
-
-// Games returns a copy of all games.
+// Games returns all games sorted by Key. The slice is shared and must not
+// be modified.
 func (r *Registry) Games() []Game {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	return r.snapshot()
+	return *r.snapshot.Load()
 }
 
 // LocalGames returns games hosted locally.
 func (r *Registry) LocalGames() []Game {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	var local []Game
 
-	result := make([]Game, 0)
-
-	for _, g := range r.games {
+	for _, g := range r.Games() {
 		if g.Source == SourceLocal {
-			result = append(result, *g)
+			local = append(local, g)
 		}
 	}
 
-	return result
-}
-
-// RemoteGames returns games from remote peers.
-func (r *Registry) RemoteGames() []Game {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	result := make([]Game, 0)
-
-	for _, g := range r.games {
-		if g.Source == SourceRemote {
-			result = append(result, *g)
-		}
-	}
-
-	return result
+	return local
 }
 
 // FindByHostCounter finds a remote game by its HostCounter.
 // Returns nil if not found.
 func (r *Registry) FindByHostCounter(hostCounter uint32) *Game {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	for _, g := range r.games {
+	for _, g := range r.Games() {
 		if g.Source == SourceRemote && g.Info.HostCounter == hostCounter {
-			gameCopy := *g
-
-			return &gameCopy
+			return &g
 		}
 	}
 
@@ -137,33 +125,38 @@ func (r *Registry) FindByHostCounter(hostCounter uint32) *Game {
 // Returns the number of games removed.
 func (r *Registry) Expire(timeout time.Duration) int {
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	before := len(r.games)
+	maps.DeleteFunc(r.games, func(_ string, g Game) bool { return g.IsStale(timeout) })
+	removed := before - len(r.games)
 
-	removed := 0
-
-	for key, game := range r.games {
-		if game.IsStale(timeout) {
-			delete(r.games, key)
-
-			removed++
-		}
+	if removed > 0 {
+		r.publish()
 	}
+	r.mu.Unlock()
 
-	if removed > 0 && r.onChange != nil {
-		r.onChange(r.snapshot())
+	if removed > 0 {
+		r.notify()
 	}
 
 	return removed
 }
 
-// snapshot returns a copy of all games.
-// Must be called with at least a read lock held.
-func (r *Registry) snapshot() []Game {
-	result := make([]Game, 0, len(r.games))
+// publish stores a fresh snapshot of r.games and returns its length.
+// Must be called with r.mu held.
+func (r *Registry) publish() int {
+	games := slices.SortedFunc(maps.Values(r.games), func(a, b Game) int {
+		return strings.Compare(a.Key(), b.Key())
+	})
+	r.snapshot.Store(&games)
 
-	for _, g := range r.games {
-		result = append(result, *g)
+	return len(games)
+}
+
+// notify wakes Run without blocking. A pending wake-up already covers this
+// change, since Run reads the snapshot only when it wakes.
+func (r *Registry) notify() {
+	select {
+	case r.changed <- struct{}{}:
+	default:
 	}
-
-	return result
 }

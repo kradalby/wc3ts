@@ -192,6 +192,7 @@ func (a *app) onPeersChanged(peers []tailscale.Peer) {
 }
 
 func (a *app) startServices(ctx context.Context) {
+	go a.runRegistry(ctx)
 	go a.runDiscovery(ctx)
 	go a.runPeerManager(ctx)
 	go a.runBroadcaster(ctx)
@@ -199,6 +200,13 @@ func (a *app) startServices(ctx context.Context) {
 
 	if a.responder != nil {
 		go a.runResponder(ctx)
+	}
+}
+
+func (a *app) runRegistry(ctx context.Context) {
+	err := a.registry.Run(ctx)
+	if err != nil && ctx.Err() == nil {
+		slog.Error("registry error", "error", err)
 	}
 }
 
