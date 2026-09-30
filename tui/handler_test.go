@@ -1,9 +1,11 @@
 package tui_test
 
 import (
+	"context"
 	"log/slog"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -18,7 +20,7 @@ func TestHandlerDoesNotBlockOnStalledTUI(t *testing.T) {
 	release := make(chan struct{})
 	delivered := make(chan tea.Msg, 1)
 
-	log := slog.New(tui.NewHandler(func(msg tea.Msg) {
+	log := slog.New(tui.NewHandler(t.Context(), func(msg tea.Msg) {
 		<-release
 
 		select {
@@ -49,4 +51,16 @@ func TestHandlerDoesNotBlockOnStalledTUI(t *testing.T) {
 	if !ok || !strings.HasSuffix(msg.Message, "line i=0") {
 		t.Fatalf("first delivered = %#v, want LogMsg ending in %q", msg, "line i=0")
 	}
+}
+
+// The forwarding goroutine must end with the TUI rather than outlive it.
+func TestHandlerStopsWithContext(t *testing.T) {
+	t.Parallel()
+
+	// synctest.Test fails if the worker is still blocked once f returns.
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		tui.NewHandler(ctx, func(tea.Msg) {}, slog.LevelDebug)
+		cancel()
+	})
 }
