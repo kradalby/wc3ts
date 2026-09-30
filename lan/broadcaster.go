@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"net"
-	"sync"
 	"time"
 
 	"github.com/kradalby/wc3ts/game"
@@ -41,15 +40,14 @@ const byteMask = 0xFF
 // It forwards raw packet bytes with only the port modified.
 type Broadcaster struct {
 	conn             *net.UDPConn
-	games            []game.Game
-	previousGameKeys map[string]uint32 // game key -> HostCounter for tracking removed games
+	registry         *game.Registry
+	previousGameKeys map[string]uint32 // game key -> HostCounter; owned by Run
 	proxyPort        uint16
 	broadcastAddr    *net.UDPAddr
-	mu               sync.RWMutex
 }
 
-// NewBroadcaster creates a new broadcaster.
-func NewBroadcaster(proxyPort uint16) (*Broadcaster, error) {
+// NewBroadcaster creates a broadcaster for the remote games in registry.
+func NewBroadcaster(proxyPort uint16, registry *game.Registry) (*Broadcaster, error) {
 	conn, err := net.ListenUDP("udp4", &net.UDPAddr{Port: 0})
 	if err != nil {
 		return nil, err
@@ -62,6 +60,7 @@ func NewBroadcaster(proxyPort uint16) (*Broadcaster, error) {
 
 	return &Broadcaster{
 		conn:             conn,
+		registry:         registry,
 		proxyPort:        proxyPort,
 		broadcastAddr:    &net.UDPAddr{IP: net.IPv4bcast, Port: DefaultPort},
 		previousGameKeys: make(map[string]uint32),
@@ -83,14 +82,6 @@ func (b *Broadcaster) Run(ctx context.Context) error {
 	}
 }
 
-// OnGamesChanged updates the list of games to broadcast.
-func (b *Broadcaster) OnGamesChanged(games []game.Game) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	b.games = games
-}
-
 // Close closes the broadcaster.
 func (b *Broadcaster) Close() error {
 	return b.conn.Close()
@@ -99,13 +90,11 @@ func (b *Broadcaster) Close() error {
 // broadcastGames sends raw GameInfo packets for all remote games,
 // and DecreateGame for any games that have been removed.
 func (b *Broadcaster) broadcastGames() {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
+	games := b.registry.Games()
 	currentKeys := make(map[string]uint32)
 
-	for i := range b.games {
-		g := &b.games[i]
+	for i := range games {
+		g := &games[i]
 
 		if g.Source != game.SourceRemote {
 			continue
