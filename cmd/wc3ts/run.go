@@ -200,7 +200,7 @@ func (a *app) startServices(ctx context.Context) {
 }
 
 func (a *app) runRegistry(ctx context.Context) {
-	err := a.registry.Run(ctx)
+	err := a.registry.Run(ctx, a.cfg.GameTimeout)
 	if err != nil && ctx.Err() == nil {
 		slog.Error("registry error", "error", err)
 	}

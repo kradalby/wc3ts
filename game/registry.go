@@ -40,9 +40,14 @@ func NewRegistry(onChange OnChangeFunc) *Registry {
 	return r
 }
 
-// Run calls onChange with the latest snapshot after changes, until ctx is
-// done. Changes made while onChange runs coalesce into one call.
-func (r *Registry) Run(ctx context.Context) error {
+// Run expires games unseen for ttl and calls onChange with the latest
+// snapshot after changes, until ctx is done. Changes made while onChange
+// runs coalesce into one call.
+func (r *Registry) Run(ctx context.Context, ttl time.Duration) error {
+	// Separate goroutine: a stalled subscriber must not keep dead games
+	// advertised.
+	go r.expireLoop(ctx, ttl)
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -128,12 +133,12 @@ func (r *Registry) FindByHostCounter(hostCounter uint32) *Game {
 	return nil
 }
 
-// Expire removes games that haven't been seen recently.
+// Expire removes games last seen before cutoff.
 // Returns the number of games removed.
-func (r *Registry) Expire(timeout time.Duration) int {
+func (r *Registry) Expire(cutoff time.Time) int {
 	r.mu.Lock()
 	before := len(r.games)
-	maps.DeleteFunc(r.games, func(_ string, g Game) bool { return g.IsStale(timeout) })
+	maps.DeleteFunc(r.games, func(_ string, g Game) bool { return g.LastSeen.Before(cutoff) })
 	removed := before - len(r.games)
 
 	if removed > 0 {
@@ -142,10 +147,30 @@ func (r *Registry) Expire(timeout time.Duration) int {
 	r.mu.Unlock()
 
 	if removed > 0 {
+		slog.Debug("expired games", "removed", removed)
 		r.notify()
 	}
 
 	return removed
+}
+
+// expireChecksPerTTL bounds how long a dead game lingers to
+// ttl + ttl/expireChecksPerTTL after its last sighting.
+const expireChecksPerTTL = 2
+
+// expireLoop expires games unseen for ttl until ctx is done.
+func (r *Registry) expireLoop(ctx context.Context, ttl time.Duration) {
+	ticker := time.NewTicker(ttl / expireChecksPerTTL)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-ticker.C:
+			r.Expire(now.Add(-ttl))
+		}
+	}
 }
 
 // publish stores a fresh snapshot of r.games and returns its length.
