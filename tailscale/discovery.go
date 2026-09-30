@@ -5,7 +5,6 @@ import (
 	"context"
 	"net/netip"
 	"strings"
-	"sync"
 
 	"tailscale.com/client/local"
 	"tailscale.com/ipn"
@@ -37,18 +36,13 @@ type OnPeersChangedFunc func(peers []Peer)
 // Discovery watches for Tailscale peer changes via the IPN bus.
 type Discovery struct {
 	client   *local.Client
-	watcher  *local.IPNBusWatcher
-	peers    []Peer
-	selfIP   netip.Addr
 	onChange OnPeersChangedFunc
-	mu       sync.RWMutex
 }
 
 // NewDiscovery creates a new Tailscale discovery instance.
 func NewDiscovery(onChange OnPeersChangedFunc) *Discovery {
 	return &Discovery{
 		client:   &local.Client{},
-		peers:    make([]Peer, 0),
 		onChange: onChange,
 	}
 }
@@ -65,10 +59,6 @@ func (d *Discovery) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
-	d.mu.Lock()
-	d.watcher = watcher
-	d.mu.Unlock()
 
 	defer func() {
 		_ = watcher.Close()
@@ -95,26 +85,6 @@ func (d *Discovery) Run(ctx context.Context) error {
 	}
 }
 
-// Peers returns a copy of the current peer list.
-func (d *Discovery) Peers() []Peer {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-
-	result := make([]Peer, len(d.peers))
-	copy(result, d.peers)
-
-	return result
-}
-
-// SelfIP returns this node's Tailscale IPv4 address.
-// Returns zero addr if not yet known from netmap updates.
-func (d *Discovery) SelfIP() netip.Addr {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-
-	return d.selfIP
-}
-
 // FetchSelfIP queries the Tailscale daemon for our IP address.
 // This can be called before Run() to get the IP synchronously.
 func (d *Discovery) FetchSelfIP(ctx context.Context) (netip.Addr, error) {
@@ -125,27 +95,11 @@ func (d *Discovery) FetchSelfIP(ctx context.Context) (netip.Addr, error) {
 
 	for _, ip := range status.TailscaleIPs {
 		if ip.Is4() {
-			d.mu.Lock()
-			d.selfIP = ip
-			d.mu.Unlock()
-
 			return ip, nil
 		}
 	}
 
 	return netip.Addr{}, nil
-}
-
-// Close stops the discovery watcher.
-func (d *Discovery) Close() error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	if d.watcher != nil {
-		return d.watcher.Close()
-	}
-
-	return nil
 }
 
 // refresh pulls the current status and rebuilds the peer list.
@@ -155,20 +109,8 @@ func (d *Discovery) refresh(ctx context.Context) error {
 		return err
 	}
 
-	if ip, ok := firstIPv4(status.Self); ok {
-		d.mu.Lock()
-		d.selfIP = ip
-		d.mu.Unlock()
-	}
-
-	peers := extractPeers(status)
-
-	d.mu.Lock()
-	d.peers = peers
-	d.mu.Unlock()
-
 	if d.onChange != nil {
-		d.onChange(peers)
+		d.onChange(extractPeers(status))
 	}
 
 	return nil
