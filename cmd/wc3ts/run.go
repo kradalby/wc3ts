@@ -88,7 +88,7 @@ func runExec(ctx context.Context, _ []string, gameVersion uint32) error {
 	a.program = tea.NewProgram(model)
 
 	// Set up logging to TUI (Debug level to see everything)
-	slog.SetDefault(slog.New(tui.NewHandler(a.program.Send, slog.LevelDebug)))
+	slog.SetDefault(slog.New(tui.NewHandler(ctx, a.program.Send, slog.LevelDebug)))
 
 	a.startServices(ctx)
 

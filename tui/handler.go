@@ -27,12 +27,18 @@ type Handler struct {
 // send runs on a single goroutine fed by a bounded queue. Handle never waits
 // for it: logging happens under locks and on network paths, and a stalled
 // event loop must not stall those, so lines are dropped once the queue fills.
-func NewHandler(send func(tea.Msg), level slog.Level) *Handler {
+// The goroutine exits when ctx is done; later lines are dropped.
+func NewHandler(ctx context.Context, send func(tea.Msg), level slog.Level) *Handler {
 	lines := make(chan string, logBuffer)
 
 	go func() {
-		for line := range lines {
-			send(LogMsg{Message: line})
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case line := <-lines:
+				send(LogMsg{Message: line})
+			}
 		}
 	}()
 
