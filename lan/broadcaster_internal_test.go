@@ -96,3 +96,24 @@ func TestBroadcastReadsRegistry(t *testing.T) {
 		t.Fatalf("registry RawData patched in place: % x", raw)
 	}
 }
+
+// An expired game must be withdrawn from WC3's LAN list.
+func TestBroadcastDecreatesExpiredGames(t *testing.T) {
+	t.Parallel()
+
+	registry := game.NewRegistry(nil)
+	registry.Add(remoteGame(2))
+
+	b, lan := newTestBroadcaster(t, registry)
+	b.broadcastGames()
+	readPacket(t, lan) // GameInfo
+	readPacket(t, lan) // RefreshGame
+
+	registry.Expire(time.Now().Add(time.Hour))
+	b.broadcastGames()
+
+	want := []byte{0xF7, 0x33, 0x08, 0x00, 0x02, 0x00, 0x00, 0x00}
+	if got := readPacket(t, lan); !bytes.Equal(got, want) {
+		t.Fatalf("DecreateGame = % x, want % x", got, want)
+	}
+}

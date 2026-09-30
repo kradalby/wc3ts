@@ -32,7 +32,7 @@ func TestRegistryDoesNotWaitForSubscriber(t *testing.T) {
 
 	r := game.NewRegistry(func([]game.Game) { <-stuck })
 
-	go func() { _ = r.Run(t.Context()) }()
+	go func() { _ = r.Run(t.Context(), time.Hour) }()
 
 	found := make(chan bool, 1)
 
@@ -60,7 +60,7 @@ func TestRegistryNotifiesLatest(t *testing.T) {
 	got := make(chan []game.Game, 16)
 	r := game.NewRegistry(func(games []game.Game) { got <- games })
 
-	go func() { _ = r.Run(t.Context()) }()
+	go func() { _ = r.Run(t.Context(), time.Hour) }()
 
 	r.Add(remote("a", 1))
 
@@ -104,5 +104,44 @@ func TestRegistryAddKeepsFirstSeen(t *testing.T) {
 
 	if got := r.Games()[0].FirstSeen; got.IsZero() || !got.Equal(first) {
 		t.Fatalf("FirstSeen after refresh = %v, want %v", got, first)
+	}
+}
+
+func TestRegistryExpire(t *testing.T) {
+	t.Parallel()
+
+	r := game.NewRegistry(nil)
+	r.Add(remote("a", 1))
+
+	if n := r.Expire(time.Now().Add(-time.Hour)); n != 0 || len(r.Games()) != 1 {
+		t.Fatalf("Expire(past) removed %d, left %d games; want 0, 1", n, len(r.Games()))
+	}
+
+	if n := r.Expire(time.Now().Add(time.Hour)); n != 1 || len(r.Games()) != 0 {
+		t.Fatalf("Expire(future) removed %d, left %d games; want 1, 0", n, len(r.Games()))
+	}
+}
+
+// Ended games must stop being advertised once probes stop answering.
+func TestRegistryRunExpiresUnseenGames(t *testing.T) {
+	t.Parallel()
+
+	got := make(chan []game.Game, 16)
+	r := game.NewRegistry(func(games []game.Game) { got <- games })
+	r.Add(remote("a", 1))
+
+	go func() { _ = r.Run(t.Context(), 20*time.Millisecond) }()
+
+	timeout := time.After(5 * time.Second)
+
+	for {
+		select {
+		case games := <-got:
+			if len(games) == 0 {
+				return
+			}
+		case <-timeout:
+			t.Fatal("game never expired")
+		}
 	}
 }

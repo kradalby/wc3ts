@@ -52,8 +52,3 @@ func (g *Game) Key() string {
 
 	return g.PeerIP.String() + ":" + g.Info.GameName
 }
-
-// IsStale returns true if the game hasn't been seen recently.
-func (g *Game) IsStale(timeout time.Duration) bool {
-	return time.Since(g.LastSeen) > timeout
-}
