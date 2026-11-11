@@ -7,9 +7,11 @@ import (
 	"math"
 	"os/signal"
 	"syscall"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/peterbourgon/ff/v3/ffcli"
+	"tailscale.com/util/backoff"
 
 	"github.com/kradalby/wc3ts/config"
 	"github.com/kradalby/wc3ts/game"
@@ -189,7 +191,7 @@ func (a *app) onPeersChanged(peers []tailscale.Peer) {
 
 func (a *app) startServices(ctx context.Context) {
 	go a.runRegistry(ctx)
-	go a.runDiscovery(ctx)
+	go runDiscovery(ctx, a.discovery.Run)
 	go a.runPeerManager(ctx)
 	go a.runBroadcaster(ctx)
 	go a.runTCPProxy(ctx)
@@ -206,10 +208,25 @@ func (a *app) runRegistry(ctx context.Context) {
 	}
 }
 
-func (a *app) runDiscovery(ctx context.Context) {
-	err := a.discovery.Run(ctx)
-	if err != nil && ctx.Err() == nil {
+// discoveryMaxBackoff bounds how long peers stay stale once tailscaled recovers.
+const discoveryMaxBackoff = 10 * time.Second
+
+// runDiscovery restarts run until ctx ends: a rejected or dropped IPN bus
+// stream must not end peer discovery for the life of the process.
+func runDiscovery(ctx context.Context, run func(context.Context) error) {
+	// Failures are logged below, so the backoff's own log is dropped.
+	// shortcut: never reset, so after many failures each retry waits the cap;
+	// reset after a long-lived run if late drops recover too slowly.
+	b := backoff.NewBackoff("discovery", func(string, ...any) {}, discoveryMaxBackoff)
+
+	for {
+		err := run(ctx)
+		if ctx.Err() != nil {
+			return
+		}
+
 		slog.Error("tailscale discovery error", "error", err)
+		b.BackOff(ctx, err)
 	}
 }
 
